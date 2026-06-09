@@ -116,11 +116,11 @@ export default function InsightsPage() {
             <div className="space-y-4">
               <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                 <span className="text-xs font-semibold text-emerald-400 tracking-wider uppercase">Largest Source</span>
-                <h3 className="text-lg font-bold text-white mt-1 capitalize">{insights.largestSource}</h3>
-                <p className="text-gray-300 text-sm mt-1">{insights.comparison}</p>
+                <h3 className="text-lg font-bold text-white mt-1 capitalize">{insights?.largestSource || 'No data'}</h3>
+                <p className="text-gray-300 text-sm mt-1">{insights?.comparison || ''}</p>
               </div>
               <div className="space-y-2">
-                {insights.insights.map((insight, idx) => (
+                {insights?.insights?.map((insight, idx) => (
                   <div key={idx} className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/5">
                     <span className="text-emerald-400 mt-0.5" aria-hidden="true">✓</span>
                     <p className="text-sm text-gray-300">{insight}</p>

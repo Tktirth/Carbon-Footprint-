@@ -34,26 +34,48 @@ router.get('/summary', (req, res, next) => {
 
     // ── Latest score
     let score = null;
+    let insights = null;
     if (assessment) {
       const rawScore = get(
-        `SELECT overall_score, transport_score, energy_score, food_score,
+        `SELECT id, overall_score, transport_score, energy_score, food_score,
                 consumption_score, waste_score, created_at
          FROM sustainability_scores WHERE assessment_id = ?`,
         [assessment.id]
       );
       if (rawScore) {
         score = {
-          overall: rawScore.overall_score,
+          id: rawScore.id,
+          overall_score: rawScore.overall_score,
+          transport_score: rawScore.transport_score,
+          energy_score: rawScore.energy_score,
+          food_score: rawScore.food_score,
+          consumption_score: rawScore.consumption_score,
+          waste_score: rawScore.waste_score,
+          created_at: rawScore.created_at,
           label: getScoreLabel(rawScore.overall_score),
-          categories: {
+        };
+
+        const { generateInsights } = require('../services/insightsEngine');
+        insights = generateInsights(
+          {
+            annual: assessment.annual_emissions_kg,
+            breakdown: {
+              transport: assessment.transport_emissions_kg,
+              energy: assessment.energy_emissions_kg,
+              food: assessment.food_emissions_kg,
+              consumption: assessment.consumption_emissions_kg,
+              waste: assessment.waste_emissions_kg,
+              water: assessment.water_emissions_kg,
+            },
+          },
+          {
             transport: rawScore.transport_score,
             energy: rawScore.energy_score,
             food: rawScore.food_score,
             consumption: rawScore.consumption_score,
             waste: rawScore.waste_score,
-          },
-          created_at: rawScore.created_at,
-        };
+          }
+        );
       }
     }
 
@@ -112,6 +134,7 @@ router.get('/summary', (req, res, next) => {
       recommendations,
       trends,
       goals,
+      insights,
       stats: {
         total_assessments: get('SELECT COUNT(*) as c FROM assessments WHERE user_id = ?', [userId]).c,
         completed_recommendations: completedRecs,
