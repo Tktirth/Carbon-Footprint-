@@ -3,6 +3,9 @@
 const dotenv = require('dotenv');
 dotenv.config();
 
+const path = require('path');
+const fs = require('fs');
+
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -30,7 +33,9 @@ function createApp() {
   const app = express();
 
   // ── Global middleware ───────────────────────────────────────────────────
-  app.use(helmet());
+  app.use(helmet({
+    contentSecurityPolicy: false,
+  }));
   app.use(cors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -54,6 +59,19 @@ function createApp() {
   app.use('/api/progress', progressRoutes);
   app.use('/api/dashboard', dashboardRoutes);
   app.use('/api/assistant', assistantRoutes);
+
+  // ── Serve static files ────────────────────────────────────────────────
+  const publicPath = path.resolve(__dirname, 'public');
+  if (fs.existsSync(publicPath)) {
+    app.use(express.static(publicPath));
+    app.get('*', (req, res) => {
+      // Don't intercept API requests
+      if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ error: 'Endpoint not found.' });
+      }
+      res.sendFile(path.join(publicPath, 'index.html'));
+    });
+  }
 
   // ── 404 catch-all ─────────────────────────────────────────────────────
   app.use((_req, res) => {
