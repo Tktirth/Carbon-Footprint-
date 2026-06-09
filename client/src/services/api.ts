@@ -89,8 +89,20 @@ export const api = {
 
   getToken,
 
-  // Assessment
-  async submitAssessment(data: AssessmentFormData): Promise<{ assessment: Assessment; score: SustainabilityScore; recommendations: Recommendation[] }> {
+  async submitAssessment(data: AssessmentFormData): Promise<{
+    assessment: Assessment;
+    emissions: {
+      daily: number;
+      monthly: number;
+      annual: number;
+      breakdown: Record<string, number>;
+    };
+    scores: {
+      overall: number;
+      categories: Record<string, number>;
+    };
+    recommendations: Recommendation[];
+  }> {
     return request('/assessments', {
       method: 'POST',
       body: JSON.stringify(data),

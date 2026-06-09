@@ -42,7 +42,14 @@ const initialFormData: AssessmentFormData = {
 
 interface SubmissionResult {
   assessment: Assessment;
-  score: SustainabilityScore;
+  emissions: {
+    daily: number;
+    monthly: number;
+    annual: number;
+  };
+  scores: {
+    overall: number;
+  };
   recommendations: Recommendation[];
 }
 
@@ -129,19 +136,19 @@ export default function AssessmentPage() {
           </div>
 
           <Card className="flex flex-col items-center py-8">
-            <ScoreGauge score={result.score.overallScore} size={200} />
+            <ScoreGauge score={result.scores.overall} size={200} />
             <div className="grid grid-cols-3 gap-6 mt-8 w-full">
               <div className="text-center">
                 <p className="text-sm text-gray-400">Daily</p>
-                <p className="text-lg font-bold text-white">{formatCO2(result.assessment.dailyEmissionsKg)}</p>
+                <p className="text-lg font-bold text-white">{formatCO2(result.emissions.daily)}</p>
               </div>
               <div className="text-center">
                 <p className="text-sm text-gray-400">Monthly</p>
-                <p className="text-lg font-bold text-white">{formatCO2(result.assessment.monthlyEmissionsKg)}</p>
+                <p className="text-lg font-bold text-white">{formatCO2(result.emissions.monthly)}</p>
               </div>
               <div className="text-center">
                 <p className="text-sm text-gray-400">Annual</p>
-                <p className="text-lg font-bold text-white">{formatCO2(result.assessment.annualEmissionsKg)}</p>
+                <p className="text-lg font-bold text-white">{formatCO2(result.emissions.annual)}</p>
               </div>
             </div>
           </Card>
