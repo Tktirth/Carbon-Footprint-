@@ -32,6 +32,9 @@ const assistantRoutes = require('./src/routes/assistant');
 function createApp() {
   const app = express();
 
+  // Enable trust proxy for express-rate-limit on Cloud Run
+  app.set('trust proxy', 1);
+
   // ── Global middleware ───────────────────────────────────────────────────
   app.use(helmet({
     contentSecurityPolicy: false,
