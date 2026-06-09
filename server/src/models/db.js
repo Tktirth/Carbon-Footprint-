@@ -1,92 +1,127 @@
 'use strict';
 
 const { DatabaseSync } = require('node:sqlite');
+const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-/**
- * Database file path — uses DB_PATH env var for testing, otherwise defaults
- * to data/carbon_footprint.db relative to the project root.
- */
 const DB_DIR = path.resolve(__dirname, '..', '..', 'data');
 const DB_FILE = process.env.DB_PATH || path.join(DB_DIR, 'carbon_footprint.db');
 
-// Ensure data directory exists (skip for in-memory DBs used in tests)
-if (DB_FILE !== ':memory:' && !fs.existsSync(path.dirname(DB_FILE))) {
-  fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
-}
+// Enable Postgres if DATABASE_URL is provided
+const isPostgres = !!process.env.DATABASE_URL;
 
-/** @type {DatabaseSync} */
 let db;
+let pool;
 
-/**
- * Initialise (or re-initialise) the database connection and run the schema.
- * Called automatically on first require; can be called again in tests to
- * swap to an in-memory database.
- *
- * @param {string} [dbPath] — optional override (e.g. ':memory:' for tests)
- * @returns {DatabaseSync}
- */
-function initDb(dbPath) {
-  const filePath = dbPath || DB_FILE;
-
-  if (db) {
-    try { db.close(); } catch (_) { /* already closed */ }
+if (isPostgres) {
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false // Required for Supabase / Cloud SQL standard connections
+    }
+  });
+} else {
+  // Ensure local data directory exists for SQLite
+  if (DB_FILE !== ':memory:' && !fs.existsSync(path.dirname(DB_FILE))) {
+    fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
   }
-
-  db = new DatabaseSync(filePath);
-
-  // Performance & safety pragmas
-  db.exec('PRAGMA journal_mode = WAL;');
-  db.exec('PRAGMA foreign_keys = ON;');
-
-  // Execute schema
-  const schemaPath = path.resolve(__dirname, '..', '..', 'database', 'schema.sql');
-  const schema = fs.readFileSync(schemaPath, 'utf-8');
-  db.exec(schema);
-
-  return db;
-}
-
-// Initialise on first load
-initDb();
-
-/**
- * Run an INSERT / UPDATE / DELETE statement.
- * @param {string} sql
- * @param {any[]} [params]
- * @returns {{changes: number, lastInsertRowid: number|bigint}}
- */
-function run(sql, params = []) {
-  return db.prepare(sql).run(...(Array.isArray(params) ? params : [params]));
 }
 
 /**
- * Fetch a single row.
- * @param {string} sql
- * @param {any[]} [params]
- * @returns {any}
+ * Initialise database tables.
+ * Made asynchronous to support PostgreSQL remote setup.
  */
-function get(sql, params = []) {
-  return db.prepare(sql).get(...(Array.isArray(params) ? params : [params]));
+async function initDb(dbPath) {
+  if (isPostgres) {
+    try {
+      const schemaPath = path.resolve(__dirname, '..', '..', 'database', 'postgres_schema.sql');
+      const schema = fs.readFileSync(schemaPath, 'utf-8');
+      await pool.query(schema);
+      console.log('⚡ Supabase PostgreSQL Database Initialised successfully.');
+    } catch (err) {
+      console.error('❌ Failed to initialise Postgres schema:', err);
+      throw err;
+    }
+  } else {
+    const filePath = dbPath || DB_FILE;
+    if (db) {
+      try { db.close(); } catch (_) {}
+    }
+    db = new DatabaseSync(filePath);
+    db.exec('PRAGMA journal_mode = WAL;');
+    db.exec('PRAGMA foreign_keys = ON;');
+
+    const schemaPath = path.resolve(__dirname, '..', '..', 'database', 'schema.sql');
+    const schema = fs.readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+  }
+}
+
+// Automatically fire init on startup
+initDb().catch((err) => {
+  console.error('❌ Initial Database Setup Failed:', err);
+});
+
+/**
+ * Helper to convert standard '?' parameters to Postgres '$1, $2' parameters.
+ */
+function convertSql(sql) {
+  let count = 1;
+  return sql.replace(/\?/g, () => `$${count++}`);
 }
 
 /**
- * Fetch all rows.
- * @param {string} sql
- * @param {any[]} [params]
- * @returns {any[]}
+ * Run an INSERT / UPDATE / DELETE statement asynchronously.
+ * Returns standard { changes, lastInsertRowid } structure.
  */
-function all(sql, params = []) {
-  return db.prepare(sql).all(...(Array.isArray(params) ? params : [params]));
+async function run(sql, params = []) {
+  const paramArray = Array.isArray(params) ? params : [params];
+  if (isPostgres) {
+    let pgSql = sql;
+    const isInsert = sql.trim().toUpperCase().startsWith('INSERT');
+    if (isInsert && !sql.toUpperCase().includes('RETURNING')) {
+      pgSql += ' RETURNING id';
+    }
+    const converted = convertSql(pgSql);
+    const result = await pool.query(converted, paramArray);
+    return {
+      changes: result.rowCount,
+      lastInsertRowid: isInsert ? (result.rows[0]?.id || null) : null
+    };
+  } else {
+    return db.prepare(sql).run(...paramArray);
+  }
 }
 
 /**
- * Return the raw node:sqlite DatabaseSync instance.
- * @returns {DatabaseSync}
+ * Fetch a single row asynchronously.
  */
+async function get(sql, params = []) {
+  const paramArray = Array.isArray(params) ? params : [params];
+  if (isPostgres) {
+    const result = await pool.query(convertSql(sql), paramArray);
+    return result.rows[0] || null;
+  } else {
+    return db.prepare(sql).get(...paramArray);
+  }
+}
+
+/**
+ * Fetch all rows asynchronously.
+ */
+async function all(sql, params = []) {
+  const paramArray = Array.isArray(params) ? params : [params];
+  if (isPostgres) {
+    const result = await pool.query(convertSql(sql), paramArray);
+    return result.rows;
+  } else {
+    return db.prepare(sql).all(...paramArray);
+  }
+}
+
 function getDb() {
-  return db;
+  return isPostgres ? pool : db;
 }
 
-module.exports = { initDb, getDb, run, get, all };
+module.exports = { initDb, getDb, run, get, all, isPostgres };

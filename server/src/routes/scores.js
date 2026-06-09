@@ -13,11 +13,11 @@ router.use(authenticateToken);
 /**
  * Return the user's most recent sustainability score with label and explanation.
  */
-router.get('/latest', (req, res, next) => {
+router.get('/latest', async (req, res, next) => {
   try {
     const userId = req.user.id;
 
-    const score = get(
+    const score = await get(
       `SELECT s.*, a.annual_emissions_kg
        FROM sustainability_scores s
        JOIN assessments a ON a.id = s.assessment_id
@@ -63,11 +63,11 @@ router.get('/latest', (req, res, next) => {
 /**
  * Return all sustainability scores for the user, ordered chronologically.
  */
-router.get('/history', (req, res, next) => {
+router.get('/history', async (req, res, next) => {
   try {
     const userId = req.user.id;
 
-    const scores = all(
+    const scores = await all(
       `SELECT s.id, s.assessment_id, s.overall_score, s.transport_score, s.energy_score,
               s.food_score, s.consumption_score, s.waste_score, s.created_at,
               a.annual_emissions_kg

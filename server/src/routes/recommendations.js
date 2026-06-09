@@ -16,7 +16,7 @@ router.use(authenticateToken);
  */
 router.get('/', [
   query('assessment_id').optional().isInt({ min: 1 }).toInt(),
-], (req, res, next) => {
+], async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -28,7 +28,7 @@ router.get('/', [
 
     let recommendations;
     if (assessmentId) {
-      recommendations = all(
+      recommendations = await all(
         `SELECT * FROM recommendations
          WHERE user_id = ? AND assessment_id = ?
          ORDER BY (co2_reduction_kg * priority) DESC`,
@@ -36,14 +36,14 @@ router.get('/', [
       );
     } else {
       // Get recommendations from latest assessment
-      const latest = get(
+      const latest = await get(
         'SELECT id FROM assessments WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
         [userId]
       );
       if (!latest) {
         return res.json({ recommendations: [] });
       }
-      recommendations = all(
+      recommendations = await all(
         `SELECT * FROM recommendations
          WHERE user_id = ? AND assessment_id = ?
          ORDER BY (co2_reduction_kg * priority) DESC`,
@@ -64,7 +64,7 @@ router.get('/', [
  */
 router.patch('/:id/complete', [
   param('id').isInt({ min: 1 }).toInt(),
-], (req, res, next) => {
+], async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -74,13 +74,13 @@ router.patch('/:id/complete', [
     const userId = req.user.id;
     const recId = req.params.id;
 
-    const rec = get('SELECT * FROM recommendations WHERE id = ? AND user_id = ?', [recId, userId]);
+    const rec = await get('SELECT * FROM recommendations WHERE id = ? AND user_id = ?', [recId, userId]);
     if (!rec) {
       return res.status(404).json({ error: 'Recommendation not found.' });
     }
 
     const newStatus = rec.is_completed ? 0 : 1;
-    run('UPDATE recommendations SET is_completed = ? WHERE id = ?', [newStatus, recId]);
+    await run('UPDATE recommendations SET is_completed = ? WHERE id = ?', [newStatus, recId]);
 
     return res.json({
       message: newStatus ? 'Recommendation marked as completed.' : 'Recommendation marked as incomplete.',

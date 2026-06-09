@@ -42,7 +42,7 @@ const loginValidation = [
  * Register a new user account.
  * Validates input, hashes password, creates user, returns JWT.
  */
-router.post('/register', authLimiter, registerValidation, (req, res, next) => {
+router.post('/register', authLimiter, registerValidation, async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -52,7 +52,7 @@ router.post('/register', authLimiter, registerValidation, (req, res, next) => {
     const { name, email, password } = req.body;
 
     // Check for existing user
-    const existing = get('SELECT id FROM users WHERE email = ?', [email]);
+    const existing = await get('SELECT id FROM users WHERE email = ?', [email]);
     if (existing) {
       return res.status(409).json({ error: 'An account with this email already exists.' });
     }
@@ -60,7 +60,7 @@ router.post('/register', authLimiter, registerValidation, (req, res, next) => {
     // Hash password (cost factor 12)
     const passwordHash = bcrypt.hashSync(password, 12);
 
-    const result = run(
+    const result = await run(
       'INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)',
       [name, email, passwordHash]
     );
@@ -84,7 +84,7 @@ router.post('/register', authLimiter, registerValidation, (req, res, next) => {
  * Authenticate an existing user.
  * Validates credentials, returns JWT.
  */
-router.post('/login', authLimiter, loginValidation, (req, res, next) => {
+router.post('/login', authLimiter, loginValidation, async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -93,7 +93,7 @@ router.post('/login', authLimiter, loginValidation, (req, res, next) => {
 
     const { email, password } = req.body;
 
-    const user = get('SELECT id, name, email, password_hash FROM users WHERE email = ?', [email]);
+    const user = await get('SELECT id, name, email, password_hash FROM users WHERE email = ?', [email]);
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
@@ -104,7 +104,7 @@ router.post('/login', authLimiter, loginValidation, (req, res, next) => {
     }
 
     // Update last activity
-    run('UPDATE users SET updated_at = datetime(\'now\') WHERE id = ?', [user.id]);
+    await run('UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
 
     const token = signToken({ id: user.id, email: user.email, name: user.name });
 
@@ -125,10 +125,10 @@ const { authenticateToken } = require('../middleware/auth');
 /**
  * Get the current authenticated user's profile.
  */
-router.get('/profile', authenticateToken, (req, res, next) => {
+router.get('/profile', authenticateToken, async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const user = get('SELECT id, name, email FROM users WHERE id = ?', [userId]);
+    const user = await get('SELECT id, name, email FROM users WHERE id = ?', [userId]);
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
     }

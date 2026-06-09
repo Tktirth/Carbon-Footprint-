@@ -20,7 +20,7 @@ router.post('/chat', [
     .trim()
     .notEmpty().withMessage('Message is required.')
     .isLength({ max: 1000 }).withMessage('Message must be under 1000 characters.'),
-], (req, res, next) => {
+], async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -33,13 +33,13 @@ router.post('/chat', [
     // Load user context
     let userData = null;
 
-    const assessment = get(
+    const assessment = await get(
       'SELECT * FROM assessments WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
       [userId]
     );
 
     if (assessment) {
-      const scores = get(
+      const scores = await get(
         'SELECT * FROM sustainability_scores WHERE assessment_id = ?',
         [assessment.id]
       );
@@ -63,7 +63,7 @@ router.post('/chat', [
       };
     }
 
-    const response = processMessage(message, userData);
+    const response = await processMessage(message, userData);
 
     return res.json({
       reply: response.reply,

@@ -64,7 +64,7 @@ const assessmentValidation = [
 
 // ─── POST / — Create assessment ─────────────────────────────────────────────
 
-router.post('/', assessmentValidation, (req, res, next) => {
+router.post('/', assessmentValidation, async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -105,7 +105,7 @@ router.post('/', assessmentValidation, (req, res, next) => {
     const insights = generateInsights(emissions, categoryScores);
 
     // 5. Persist assessment
-    const assessmentResult = run(
+    const assessmentResult = await run(
       `INSERT INTO assessments
         (user_id, vehicle_type, travel_km_per_week, public_transport_km_per_week, flights_per_year,
          electricity_kwh_per_month, ac_hours_per_day, appliance_usage, diet_type,
@@ -130,7 +130,7 @@ router.post('/', assessmentValidation, (req, res, next) => {
     const assessmentId = assessmentResult.lastInsertRowid;
 
     // 6. Persist score
-    run(
+    await run(
       `INSERT INTO sustainability_scores
         (user_id, assessment_id, overall_score, transport_score, energy_score, food_score, consumption_score, waste_score)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -139,7 +139,7 @@ router.post('/', assessmentValidation, (req, res, next) => {
 
     // 7. Persist recommendations
     for (const rec of recs) {
-      run(
+      await run(
         `INSERT INTO recommendations
           (user_id, assessment_id, category, title, description, co2_reduction_kg, difficulty, financial_impact, annual_savings_usd, priority)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -149,7 +149,7 @@ router.post('/', assessmentValidation, (req, res, next) => {
 
     // 8. Record progress history entry
     const now = new Date().toISOString().slice(0, 10);
-    run(
+    await run(
       `INSERT INTO progress_history (user_id, period_type, period_start, period_end, total_emissions_kg, score)
        VALUES (?, 'monthly', ?, ?, ?, ?)`,
       [userId, now, now, emissions.annual, overallScore]
@@ -178,15 +178,15 @@ router.post('/', assessmentValidation, (req, res, next) => {
 router.get('/', [
   query('page').optional().isInt({ min: 1 }).toInt(),
   query('limit').optional().isInt({ min: 1, max: 50 }).toInt(),
-], (req, res, next) => {
+], async (req, res, next) => {
   try {
     const userId = req.user.id;
     const page = req.query.page || 1;
     const limit = req.query.limit || 10;
     const offset = (page - 1) * limit;
 
-    const total = get('SELECT COUNT(*) as count FROM assessments WHERE user_id = ?', [userId]);
-    const assessments = all(
+    const total = await get('SELECT COUNT(*) as count FROM assessments WHERE user_id = ?', [userId]);
+    const assessments = await all(
       'SELECT * FROM assessments WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
       [userId, limit, offset]
     );
@@ -207,11 +207,11 @@ router.get('/', [
 
 // ─── GET /latest — Most recent assessment with scores & recommendations ─────
 
-router.get('/latest', (req, res, next) => {
+router.get('/latest', async (req, res, next) => {
   try {
     const userId = req.user.id;
 
-    const assessment = get(
+    const assessment = await get(
       'SELECT * FROM assessments WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
       [userId]
     );
@@ -220,12 +220,12 @@ router.get('/latest', (req, res, next) => {
       return res.status(404).json({ error: 'No assessments found. Submit one first.' });
     }
 
-    const scores = get(
+    const scores = await get(
       'SELECT * FROM sustainability_scores WHERE assessment_id = ?',
       [assessment.id]
     );
 
-    const recommendations = all(
+    const recommendations = await all(
       'SELECT * FROM recommendations WHERE assessment_id = ? ORDER BY (co2_reduction_kg * priority) DESC',
       [assessment.id]
     );

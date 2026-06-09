@@ -18,12 +18,12 @@ router.use(authenticateToken);
  * - Recent emission trends (last 6 assessments)
  * - Active goals
  */
-router.get('/summary', (req, res, next) => {
+router.get('/summary', async (req, res, next) => {
   try {
     const userId = req.user.id;
 
     // ── Latest assessment
-    const assessment = get(
+    const assessment = await get(
       `SELECT id, annual_emissions_kg, monthly_emissions_kg, daily_emissions_kg,
               transport_emissions_kg, energy_emissions_kg, food_emissions_kg,
               consumption_emissions_kg, waste_emissions_kg, water_emissions_kg,
@@ -36,7 +36,7 @@ router.get('/summary', (req, res, next) => {
     let score = null;
     let insights = null;
     if (assessment) {
-      const rawScore = get(
+      const rawScore = await get(
         `SELECT id, overall_score, transport_score, energy_score, food_score,
                 consumption_score, waste_score, created_at
          FROM sustainability_scores WHERE assessment_id = ?`,
@@ -82,7 +82,7 @@ router.get('/summary', (req, res, next) => {
     // ── Top 5 recommendations from latest assessment
     let recommendations = [];
     if (assessment) {
-      recommendations = all(
+      recommendations = await all(
         `SELECT id, category, title, description, co2_reduction_kg, difficulty,
                 financial_impact, annual_savings_usd, priority, is_completed
          FROM recommendations
@@ -94,7 +94,7 @@ router.get('/summary', (req, res, next) => {
     }
 
     // ── Recent trends (last 6 assessments)
-    const trends = all(
+    const rawTrends = await all(
       `SELECT a.id, a.annual_emissions_kg, a.created_at, s.overall_score
        FROM assessments a
        LEFT JOIN sustainability_scores s ON s.assessment_id = a.id
@@ -102,13 +102,15 @@ router.get('/summary', (req, res, next) => {
        ORDER BY a.created_at DESC
        LIMIT 6`,
       [userId]
-    ).reverse(); // chronological order
+    );
+    const trends = rawTrends.reverse(); // chronological order
 
     // ── Active goals
-    const goals = all(
+    const rawGoals = await all(
       'SELECT * FROM goals WHERE user_id = ? AND status = ? ORDER BY target_date ASC',
       [userId, 'active']
-    ).map((g) => ({
+    );
+    const goals = rawGoals.map((g) => ({
       ...g,
       progress_pct: g.target_reduction_kg > 0
         ? Math.min(100, Math.round((g.current_reduction_kg / g.target_reduction_kg) * 10000) / 100)
@@ -119,7 +121,7 @@ router.get('/summary', (req, res, next) => {
     let completedRecs = 0;
     let totalRecs = 0;
     if (assessment) {
-      const counts = get(
+      const counts = await get(
         `SELECT COUNT(*) as total, SUM(CASE WHEN is_completed = 1 THEN 1 ELSE 0 END) as completed
          FROM recommendations WHERE assessment_id = ?`,
         [assessment.id]
@@ -127,6 +129,8 @@ router.get('/summary', (req, res, next) => {
       totalRecs = counts.total;
       completedRecs = counts.completed || 0;
     }
+
+    const totalCountRes = await get('SELECT COUNT(*) as count FROM assessments WHERE user_id = ?', [userId]);
 
     return res.json({
       assessment: assessment || null,
@@ -136,7 +140,7 @@ router.get('/summary', (req, res, next) => {
       goals,
       insights,
       stats: {
-        total_assessments: get('SELECT COUNT(*) as c FROM assessments WHERE user_id = ?', [userId]).c,
+        total_assessments: totalCountRes.count,
         completed_recommendations: completedRecs,
         total_recommendations: totalRecs,
         active_goals: goals.length,
