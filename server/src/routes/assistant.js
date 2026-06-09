@@ -28,7 +28,7 @@ router.post('/chat', [
     }
 
     const userId = req.user.id;
-    const { message } = req.body;
+    const { message, history } = req.body;
 
     // Load user context
     let userData = null;
@@ -63,7 +63,7 @@ router.post('/chat', [
       };
     }
 
-    const response = await processMessage(message, userData);
+    const response = await processMessage(message, userData, history);
 
     return res.json({
       reply: response.reply,

@@ -173,9 +173,10 @@ const FAREWELL_PATTERNS = ['bye', 'goodbye', 'see you', 'later'];
  *
  * @param {string} message — user's chat input
  * @param {{ assessment?: object, scores?: object, emissions?: object } | null} userData
+ * @param {Array<{ role: 'user' | 'assistant', content: string }> | null} history — chat history
  * @returns {Promise<{ reply: string, suggestions: string[] }>}
  */
-async function processMessage(message, userData) {
+async function processMessage(message, userData, history) {
   if (process.env.GEMINI_API_KEY) {
     try {
       const { GoogleGenerativeAI } = require('@google/generative-ai');
@@ -210,13 +211,24 @@ async function processMessage(message, userData) {
         }
       }
 
+      // Build previous conversation history context (limit to last 8 messages)
+      let historyText = '';
+      if (Array.isArray(history) && history.length > 0) {
+        historyText = 'Previous conversation history:\n';
+        for (const msg of history.slice(-8)) {
+          const sender = msg.role === 'assistant' ? 'Assistant' : 'User';
+          historyText += `${sender}: ${msg.content}\n`;
+        }
+        historyText += '\n';
+      }
+
       const prompt = `You are "EcoTrack Assistant", a helpful, friendly, and expert AI sustainability assistant.
 Your goal is to answer the user's questions about carbon footprints, climate change, green living, and sustainability.
 Provide concise, actionable advice. Highlight micro-actions they can take.
 
 ${context}
 
-User Message: "${message}"
+${historyText}User Message: "${message}"
 
 Please respond directly to the user message in a helpful, conversational manner. Avoid using placeholders or markdown titles (like # Title). Keep your response under 150 words.`;
 

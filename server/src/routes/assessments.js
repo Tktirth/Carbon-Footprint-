@@ -137,15 +137,15 @@ router.post('/', assessmentValidation, async (req, res, next) => {
       [userId, assessmentId, overallScore, categoryScores.transport, categoryScores.energy, categoryScores.food, categoryScores.consumption, categoryScores.waste]
     );
 
-    // 7. Persist recommendations
-    for (const rec of recs) {
-      await run(
+    // 7. Persist recommendations in parallel to optimize remote DB roundtrip latency
+    await Promise.all(recs.map((rec) =>
+      run(
         `INSERT INTO recommendations
           (user_id, assessment_id, category, title, description, co2_reduction_kg, difficulty, financial_impact, annual_savings_usd, priority)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [userId, assessmentId, rec.category, rec.title, rec.description, rec.co2_reduction_kg, rec.difficulty, rec.financial_impact, rec.annual_savings_usd, rec.priority]
-      );
-    }
+      )
+    ));
 
     // 8. Record progress history entry
     const now = new Date().toISOString().slice(0, 10);

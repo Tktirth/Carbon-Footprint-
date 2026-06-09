@@ -19,7 +19,10 @@ if (isPostgres) {
     connectionString: process.env.DATABASE_URL,
     ssl: {
       rejectUnauthorized: false // Required for Supabase / Cloud SQL standard connections
-    }
+    },
+    max: 5, // Protect Supabase connection exhaustion in serverless environments
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000
   });
 } else {
   // Ensure local data directory exists for SQLite
@@ -34,14 +37,25 @@ if (isPostgres) {
  */
 async function initDb(dbPath) {
   if (isPostgres) {
+    let client;
     try {
+      client = await pool.connect();
+      // Acquire session-level advisory lock using a unique lock key (e.g. 1781034)
+      await client.query('SELECT pg_advisory_lock(1781034)');
+      
       const schemaPath = path.resolve(__dirname, '..', '..', 'database', 'postgres_schema.sql');
       const schema = fs.readFileSync(schemaPath, 'utf-8');
-      await pool.query(schema);
+      await client.query(schema);
       console.log('⚡ Supabase PostgreSQL Database Initialised successfully.');
     } catch (err) {
       console.error('❌ Failed to initialise Postgres schema:', err);
       throw err;
+    } finally {
+      if (client) {
+        // Release advisory lock and return client back to pool
+        await client.query('SELECT pg_advisory_unlock(1781034)').catch(() => {});
+        client.release();
+      }
     }
   } else {
     const filePath = dbPath || DB_FILE;
