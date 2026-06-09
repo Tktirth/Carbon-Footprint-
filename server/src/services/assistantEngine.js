@@ -166,16 +166,76 @@ const FAREWELL_PATTERNS = ['bye', 'goodbye', 'see you', 'later'];
 // ─── Public API ─────────────────────────────────────────────────────────────
 
 /**
- * Process a user message and return a deterministic, rule-based response.
+ * Process a user message and return a response (either via Gemini AI or a rule-based fallback).
  *
  * If `userData` contains an assessment, the bot can also reference the user's
  * own emissions and scores.
  *
  * @param {string} message — user's chat input
  * @param {{ assessment?: object, scores?: object, emissions?: object } | null} userData
- * @returns {{ reply: string, suggestions: string[] }}
+ * @returns {Promise<{ reply: string, suggestions: string[] }>}
  */
-function processMessage(message, userData) {
+async function processMessage(message, userData) {
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const { GoogleGenerativeAI } = require('@google/generative-ai');
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+      // Build context of user emissions/scores/recommendations
+      let context = '';
+      if (userData) {
+        context = `Here is the user's current carbon footprint context:
+- Daily Emissions: ${userData.emissions?.daily || 'Unknown'} kg CO2
+- Monthly Emissions: ${userData.emissions?.monthly || 'Unknown'} kg CO2
+- Annual Emissions: ${userData.emissions?.annual || 'Unknown'} kg CO2
+- Category Breakdown:
+  * Transport: ${userData.emissions?.breakdown?.transport || 0} kg CO2/year
+  * Energy: ${userData.emissions?.breakdown?.energy || 0} kg CO2/year
+  * Food: ${userData.emissions?.breakdown?.food || 0} kg CO2/year
+  * Consumption: ${userData.emissions?.breakdown?.consumption || 0} kg CO2/year
+  * Waste: ${userData.emissions?.breakdown?.waste || 0} kg CO2/year
+  * Water: ${userData.emissions?.breakdown?.water || 0} kg CO2/year
+`;
+        if (userData.scores) {
+          const s = userData.scores;
+          context += `- Sustainability Scores (out of 100, higher is more sustainable):
+  * Overall Score: ${s.overall_score || 0}
+  * Transport Score: ${s.transport_score || 0}
+  * Energy Score: ${s.energy_score || 0}
+  * Food Score: ${s.food_score || 0}
+  * Consumption Score: ${s.consumption_score || 0}
+  * Waste Score: ${s.waste_score || 0}
+`;
+        }
+      }
+
+      const prompt = `You are "EcoTrack Assistant", a helpful, friendly, and expert AI sustainability assistant.
+Your goal is to answer the user's questions about carbon footprints, climate change, green living, and sustainability.
+Provide concise, actionable advice. Highlight micro-actions they can take.
+
+${context}
+
+User Message: "${message}"
+
+Please respond directly to the user message in a helpful, conversational manner. Avoid using placeholders or markdown titles (like # Title). Keep your response under 150 words.`;
+
+      const result = await model.generateContent(prompt);
+      const replyText = result.response.text().trim();
+
+      // Generate suggestions using existing logic
+      const suggestions = generateSuggestions((message || '').toLowerCase());
+
+      return {
+        reply: replyText,
+        suggestions,
+      };
+    } catch (err) {
+      console.error('❌ Gemini API failed, falling back to local assistant engine:', err);
+    }
+  }
+
+  // Fallback to local rule-based matching
   const normalised = (message || '').toLowerCase().trim();
 
   if (!normalised) {
