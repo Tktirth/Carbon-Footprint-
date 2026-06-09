@@ -131,31 +131,27 @@ export default function InsightsPage() {
           </Card>
 
           <Card title="Category Sustainability Scores">
-            <div className="h-64 flex items-center justify-center">
-              <CategoryScores
-                transport={score.transportScore}
-                energy={score.energyScore}
-                food={score.foodScore}
-                consumption={score.consumptionScore}
-                waste={score.wasteScore}
-              />
-            </div>
+            <CategoryScores
+              transport={score.transportScore}
+              energy={score.energyScore}
+              food={score.foodScore}
+              consumption={score.consumptionScore}
+              waste={score.wasteScore}
+            />
           </Card>
         </div>
 
         {/* Detailed Breakdown */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card title="Emissions Breakdown">
-            <div className="h-64 flex items-center justify-center">
-              <EmissionsBreakdown
-                transport={assessment.transportEmissionsKg}
-                energy={assessment.energyEmissionsKg}
-                food={assessment.foodEmissionsKg}
-                consumption={assessment.consumptionEmissionsKg}
-                waste={assessment.wasteEmissionsKg}
-                water={assessment.waterEmissionsKg}
-              />
-            </div>
+            <EmissionsBreakdown
+              transport={assessment.transportEmissionsKg}
+              energy={assessment.energyEmissionsKg}
+              food={assessment.foodEmissionsKg}
+              consumption={assessment.consumptionEmissionsKg}
+              waste={assessment.wasteEmissionsKg}
+              water={assessment.waterEmissionsKg}
+            />
           </Card>
 
           <Card className="lg:col-span-2" title="Emissions Analysis">
