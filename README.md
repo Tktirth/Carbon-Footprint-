@@ -1,142 +1,262 @@
-# EcoTrack — Intelligent Carbon Footprint Assistant
+# EcoTrack 🌱 — Intelligent Carbon Footprint & Sustainability Assistant
 
-EcoTrack is a complete, hackathon-ready sustainability application built to help individuals track, understand, and reduce their carbon footprint through simple actions and personalized insights. It works like a smart sustainability coach rather than a basic carbon calculator, combining a rule-based AI chatbot, a normalized relational database schema, comprehensive scoring engines, and a stunning dark-themed dashboard.
-
----
-
-## 🚀 Recommended Workspace
-> [!NOTE]
-> This project is located at:
-> `/Users/tirthkosambia/.gemini/antigravity/scratch/carbon-footprint/`
->
-> It is highly recommended that you set this subdirectory as your active workspace in your IDE to interact with the code, run tasks, and view files.
+EcoTrack is a production-grade, hackathon-ready sustainability platform designed to help users track, analyze, and systematically reduce their environmental footprint. Rather than functioning as a static calculator, EcoTrack acts as a personalized sustainability coach, featuring a dynamic frontend, an asynchronous database abstraction layer (supporting both SQLite and PostgreSQL), and a dual-engine AI assistant powered by **Google Gemini 2.0 Flash**.
 
 ---
 
-## 🏗️ Architecture & Technology Stack
+## 🚀 Key Features
 
-The application is structured as a monorepo with separate `client/` and `server/` components:
+* **Intelligent Carbon Assessment**: Multi-category questionnaire spanning transport, energy, food, consumption, waste, and water usage with real-time scientific calculations.
+* **Persistent AI Chat History (Option A)**: A full-featured chat assistant with message history persisted to the database, allowing seamless session resumption and context-aware chat.
+* **Gamified Leaderboard & Social Savings Counter (Option B)**: Social engagement system that ranks users by their total carbon savings and tracks completed ecological recommendations.
+* **AI-Generated Custom Action Plan (Option C)**: An executive 30-to-90-day custom sustainability roadmap generated on-demand by Gemini, broken down by difficulty and impact.
+* **Dual-Engine AI Abstraction**: Integrates Google Gemini 2.0 Flash for semantic understanding and roadmapping, with a robust local rule-based fallback system if API limits are reached.
+* **Hybrid Database Adapter**: Unified backend data layer supporting zero-config local SQLite (using Node's native compile-free `node:sqlite` module) and remote PostgreSQL/Supabase.
 
+---
+
+## 🏗️ Architecture & System Flow
+
+EcoTrack utilizes a decoupled client-server architecture. The frontend is built with React and Vite, while the backend is a Node.js Express server.
+
+### 🔄 System Flow Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User (Client)
+    participant Server as Express Server
+    participant AI as Gemini 2.0 API
+    database DB as Database (Postgres/SQLite)
+
+    User->>Server: Submit Carbon Assessment
+    Server->>Server: Calculate Emissions (Scientific Formulas)
+    Server->>Server: Compute Category & Overall Scores
+    Server->>DB: Persist Assessment & Recommendations
+    DB-->>Server: Saved Data
+    Server-->>User: Return Scorecard & Dashboard Metrics
+
+    User->>Server: Ask AI Assistant / Request Action Plan
+    Server->>DB: Load User Footprint & Chat History
+    DB-->>Server: User Profile & Context
+    Server->>AI: Send Prompt + Profile + Context (Gemini 2.0)
+    Note over Server,AI: Fallback to Local Rule Engine if 429/Error
+    AI-->>Server: Structured Markdown Output
+    Server->>DB: Log AI Response / Save Action Plan
+    Server-->>User: Render Custom AI Roadmap / Message Bubble
 ```
-carbon-footprint/
-├── client/              # React (Vite) + TypeScript + Tailwind CSS Frontend
-│   ├── src/
-│   │   ├── components/  # Reusable UI & Chart Components
-│   │   ├── context/     # Auth & App State Contexts
-│   │   ├── pages/       # Dashboard, Assessment, Insights, Progress, Assistant
-│   │   ├── services/    # Centralized API Service
-│   │   └── utils/       # Formatting & Theme helpers
-│   └── __tests__/       # Vitest Frontend Unit Tests
-│
-└── server/              # Node.js + Express + SQLite Backend
-    ├── database/        # Schema SQL scripts
-    ├── src/
-    │   ├── middleware/  # JWT Auth, Rate Limiter, Case Converter, Error Handler
-    │   ├── models/      # node:sqlite Database Manager
-    │   ├── routes/      # Relational Endpoint Controllers
-    │   └── services/    # Carbon Calculator, Scoring & AI Engines
-    └── __tests__/       # Vitest Backend Unit & Integration Tests
+
+### 🗄️ Relational Database Schema
+
+```mermaid
+erDiagram
+    USERS ||--o{ ASSESSMENTS : submits
+    USERS ||--o{ CHAT_MESSAGES : sends
+    USERS ||--o{ GOALS : sets
+    ASSESSMENTS ||--|| SUSTAINABILITY_SCORES : computes
+    ASSESSMENTS ||--o{ RECOMMENDATIONS : triggers
+    ASSESSMENTS ||--|| SUSTAINABILITY_PLANS : generates
+
+    USERS {
+        int id PK
+        string name
+        string email
+        string password_hash
+        timestamp created_at
+    }
+    ASSESSMENTS {
+        int id PK
+        int user_id FK
+        string vehicle_type
+        float travel_km_per_week
+        float public_transport_km_per_week
+        int flights_per_year
+        float electricity_kwh_per_month
+        float ac_hours_per_day
+        string appliance_usage
+        string diet_type
+        int online_orders_per_month
+        int clothing_items_per_month
+        int electronics_per_year
+        float recycling_percentage
+        int waste_bags_per_week
+        float water_liters_per_day
+        float annual_emissions_kg
+        timestamp created_at
+    }
+    SUSTAINABILITY_SCORES {
+        int id PK
+        int user_id FK
+        int assessment_id FK
+        float overall_score
+        float transport_score
+        float energy_score
+        float food_score
+        float consumption_score
+        float waste_score
+        timestamp created_at
+    }
+    RECOMMENDATIONS {
+        int id PK
+        int user_id FK
+        int assessment_id FK
+        string category
+        string title
+        string description
+        float co2_reduction_kg
+        string difficulty
+        string financial_impact
+        float annual_savings_usd
+        int priority
+        boolean is_completed
+        timestamp created_at
+    }
+    CHAT_MESSAGES {
+        int id PK
+        int user_id FK
+        string role
+        text content
+        timestamp created_at
+    }
+    SUSTAINABILITY_PLANS {
+        int id PK
+        int user_id FK
+        int assessment_id FK
+        text plan_content
+        timestamp created_at
+    }
+    GOALS {
+        int id PK
+        int user_id FK
+        string title
+        float target_reduction_kg
+        timestamp target_date
+        float current_reduction_kg
+        string status
+        timestamp created_at
+    }
 ```
 
-### 💻 Key Technologies:
-* **Frontend**: React 18, Vite, TypeScript, Tailwind CSS, Recharts (for charts), React Router 6.
-* **Backend**: Node.js, Express, SQLite (using the native `node:sqlite` `DatabaseSync` module for compile-free lightweight deployment), JWT Auth, Express Rate Limit, Helmet.
-* **Testing**: Vitest for both backend & frontend test suites (fully independent).
+---
+
+## 🧮 Scientific Methodology
+
+EcoTrack computes annual carbon footprints using peer-reviewed global average emission factors:
+
+### 1. Transport Emissions
+$$E_{\text{transport}} = \left( \text{distance}_{\text{vehicle}} \times F_{\text{vehicle}} + \text{distance}_{\text{transit}} \times F_{\text{transit}} \right) \times 52 + \text{flights} \times F_{\text{flight}}$$
+* **Petrol Car ($F_{\text{vehicle}}$)**: $0.21 \text{ kg CO}_2\text{/km}$ | **Diesel Car**: $0.17 \text{ kg CO}_2\text{/km}$ | **Electric Car**: $0.05 \text{ kg CO}_2\text{/km}$
+* **Public Transit ($F_{\text{transit}}$)**: $0.04 \text{ kg CO}_2\text{/km}$ | **Short-Haul Flight ($F_{\text{flight}}$)**: $255 \text{ kg CO}_2\text{/flight}$
+
+### 2. Energy Emissions
+$$E_{\text{energy}} = \left( \text{electricity}_{\text{kWh}} \times F_{\text{grid}} + \left( \text{AC}_{\text{hours}} \times 1.5 \text{ kW} \times F_{\text{grid}} \right) \times 30 \right) \times 12 \times M_{\text{appliances}}$$
+* **Grid Factor ($F_{\text{grid}}$)**: $0.42 \text{ kg CO}_2\text{/kWh}$ (global average grid intensity)
+* **Appliance Multiplier ($M_{\text{appliances}}$)**: Low ($0.8$), Moderate ($1.0$), High ($1.3$) based on appliance age and efficiency.
+
+### 3. Diet, Consumption, Waste & Water
+* **Diet (Annual)**: Vegan ($1,500\text{ kg}$), Vegetarian ($1,700\text{ kg}$), Mixed ($2,500\text{ kg}$), High-Meat ($3,300\text{ kg}$).
+* **Consumption**: Online Orders ($19\text{ kg/order}$), Clothing ($14\text{ kg/garment}$), Electronics ($300\text{ kg/device}$).
+* **Household Waste**: $2.5\text{ kg CO}_2\text{/bag/week} \times 52 \times \left(1 - \text{recycling percentage}\right)$.
+* **Water Usage**: $0.0003 \text{ kg CO}_2\text{/liter/day} \times 365$.
 
 ---
 
-## 🎨 Design & Accessibility
-* **Theme**: Sleek, premium dark mode using HSL emerald and dark green colors (`#0a0f0d`, `#111916`, `#1a2420`).
-* **UI Patterns**: Premium glassmorphism effects (`backdrop-blur bg-white/5 border border-white/10`), smooth micro-animations on load, and custom scrollbars.
-* **Accessibility (a11y)**: Semantic HTML5 elements (`<header>`, `<main>`, `<nav>`), unique `id` and `aria-label` tags, explicit form labels, and high-contrast color scales for charts/progress bars.
-* **Responsive Layout**: Designed for seamless viewing across smartphones, tablets, and desktop monitors.
+## 💯 Score & Recommendation Algorithm
+
+### Sustainability Scoring
+Each carbon category is scored from $0$ to $100$ relative to global averages. A score of $50$ represents a standard user, scores approaching $100$ indicate optimal sustainability, and lower scores represent high-emission profiles:
+$$\text{Category Score} = \max\left(0, \min\left(100, 100 - \left(\frac{\text{User Emissions}}{\text{Average Emissions}} \times 50\right)\right)\right)$$
+$$\text{Overall Score} = 0.30 \cdot S_{\text{transport}} + 0.25 \cdot S_{\text{energy}} + 0.20 \cdot S_{\text{food}} + 0.15 \cdot S_{\text{consumption}} + 0.10 \cdot S_{\text{waste}}$$
+
+### Dynamic Recommendation Engine
+Over 15+ situational recommendations are filtered, weighted, and prioritized according to the user's specific answers:
+* Submitting a petrol vehicle with travel > $100\text{ km/week}$ triggers carpooling or public transport alternatives.
+* Low recycling percentages trigger localized recycling guides.
+* High meat consumption triggers meatless-day programs.
 
 ---
 
-## 🧮 Emission Factor Formulas
+## 💻 Tech Stack & Design Aesthetics
 
-All calculations use realistic, peer-reviewed global average emission factors:
-
-1. **Transport**:
-   * Petrol Vehicle: `0.21 kg CO₂ / km`
-   * Diesel Vehicle: `0.17 kg CO₂ / km`
-   * Electric Vehicle: `0.05 kg CO₂ / km`
-   * Motorcycle: `0.10 kg CO₂ / km`
-   * Public Transit: `0.04 kg CO₂ / km`
-   * Aviation: `255 kg CO₂` per short-haul flight
-
-2. **Energy**:
-   * Grid Electricity: `0.42 kg CO₂ / kWh` (global grid average factor)
-   * Air Conditioning: `1.5 kWh / hour` consumption
-   * Appliance Load: Low (`0.8`), Moderate (`1.0`), High (`1.3`) multiplier
-
-3. **Diet**:
-   * Vegan: `1,500 kg CO₂ / year`
-   * Vegetarian: `1,700 kg CO₂ / year`
-   * Mixed (standard): `2,500 kg CO₂ / year`
-   * High Meat: `3,300 kg CO₂ / year`
-
-4. **Consumption**:
-   * Online Orders: `19 kg CO₂ / order`
-   * Garments: `14 kg CO₂ / item`
-   * Electronics: `300 kg CO₂ / device`
-
-5. **Waste & Water**:
-   * Household Waste: `2.5 kg CO₂ / bag` (weekly frequency, recycling reduces overall waste footprint dynamically)
-   * Daily Water: `0.0003 kg CO₂ / liter`
+* **Frontend**: React 18, Vite, TypeScript, Tailwind CSS, Recharts (data visualizations), React Router 6.
+* **Backend**: Node.js, Express, SQLite (`node:sqlite`), Postgres Client (`pg` pool).
+* **AI integration**: Google Generative AI SDK (Gemini 2.0 Flash) with custom contextual prompt wrapping and instant local fallback.
+* **Design & Aesthetics**: Sleek glassmorphism theme (`backdrop-blur-xl bg-white/5 border border-white/10`) with emerald-400 gradients, custom transitions, and interactive micro-animations.
+* **Accessibility (a11y)**: Screen-reader semantic HTML5 structures, descriptive focus states, unique DOM IDs, explicit form labels, and high-contrast color codes for Recharts data.
 
 ---
 
-## 💯 Sustainability Scoring & Recommendation Logic
-* **Scoring Formula**:
-  Each category is scored from `0` to `100` relative to global averages:
-  $$\text{Category Score} = \max\left(0, \min\left(100, 100 - \left(\frac{\text{User Emissions}}{\text{Average Emissions}} \times 50\right)\right)\right)$$
-  * *At average emissions, the score is exactly 50.*
-  * *Zero emissions yields a score of 100.*
+## 🛠️ Installation & Setup
 
-* **Weighted Overall Score**:
-  $$\text{Overall Score} = (T \times 0.3) + (E \times 0.25) + (F \times 0.2) + (C \times 0.15) + (W \times 0.1)$$
-  *(T: Transport, E: Energy, F: Food, C: Consumption, W: Waste)*
+### Prerequisites
+* **Node.js v22+** (Fully optimized and tested on Node.js v26)
 
-* **Rule-Based Assistant**:
-  An keyword-matching expert system loaded with 30+ Q&A pairs. The assistant intercepts chat queries, dynamically evaluates the user's latest footprint variables, highlights their top emission drivers, and proposes localized carbon savings actions with follow-up suggestions.
+### 1. Environment Configuration
+Copy the `.env.example` at the root of the project to a new file named `.env` in the `server/` directory:
+```bash
+cp .env.example server/.env
+```
+Fill in the configuration details:
+* To use local SQLite, leave `DATABASE_URL` commented out.
+* To use remote PostgreSQL, set `DATABASE_URL` to your connection string.
+* Add your `GEMINI_API_KEY` to enable AI features.
 
----
-
-## 🛠️ Getting Started & Dev Setup
-
-Ensure you are using **Node.js v22+** (tested and optimized on **Node.js v26**).
-
-### 1. Start the Backend API Server
+### 2. Start the Backend API Server
 ```bash
 cd server
 npm install
 npm run dev
 ```
-The server will boot on `http://localhost:3001` and initialize/connect to `server/data/carbon_footprint.db`.
+The server will run on `http://localhost:3001` and automatically execute database migration schemas.
 
-### 2. Start the Frontend Client
+### 3. Start the Frontend Client
 ```bash
 cd client
 npm install
 npm run dev
 ```
-The frontend will start on `http://localhost:5173/`. All API requests starting with `/api` are automatically proxied to the backend.
+The frontend application will start on `http://localhost:5173`. API requests are automatically proxied via Vite config.
 
 ---
 
-## 🧪 Running Tests
+## 🧪 Testing
 
-### Backend Tests (52 cases)
-Runs unit tests for calculators, recommendation algorithms, scoring modules, and full API integration suites (using an in-memory SQL database):
+Both frontend and backend include independent, comprehensive Vitest test suites.
+
+### Run Backend Tests (56 Cases)
+Includes tests for carbon calculation logic, score weighing, recommendation triggers, and mock API integration:
 ```bash
 cd server
 npm test
 ```
 
-### Frontend Tests (18 cases)
-Verifies components, dashboard rendering, navigation paths, form controllers, and layout structures:
+### Run Frontend Tests (18 Cases)
+Verifies React layout structures, Multi-step wizard forms, gauges, and dashboard state:
 ```bash
 cd client
 npm test
 ```
+
+---
+
+## 🚀 Production Deployment (GCP Cloud Run)
+
+The application is fully containerized and production-ready.
+
+### Manual Cloud Run Deployment
+To deploy using Google Cloud CLI, run from the `server/` directory:
+```bash
+cd server
+gcloud run deploy ecotrack \
+  --source . \
+  --project=crested-talon-497314-v6 \
+  --region=us-central1 \
+  --allow-unauthenticated \
+  --set-env-vars="JWT_SECRET=your-secure-jwt-secret,GEMINI_API_KEY=your-gemini-key,DATABASE_URL=your-supabase-connection-string"
+```
+
+### Security & Scaling in Production
+* **Advisory Locks**: Backend migrations use session-level PostgreSQL advisory locks (`pg_advisory_lock`) to prevent race conditions during concurrent serverless container startup.
+* **Connection Pooling**: Restricts pool size (`max: 5`) to prevent serverless scaling from exhausting Supabase connection limits.
+* **Production Secret Checks**: Server halts immediately on startup in production if `JWT_SECRET` is missing or matches default development keys.
+* **Rate Limiting**: Integrated `express-rate-limit` prevents brute-force abuse of AI and auth routes.
