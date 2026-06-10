@@ -7,30 +7,34 @@ interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  mockVerificationCode: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  verifyEmail: (code: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(api.getToken());
+  const [token, setToken] = useState<string | null>(null);
+  const [mockVerificationCode, setMockVerificationCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadUser = useCallback(async () => {
-    const storedToken = api.getToken();
-    if (!storedToken) {
-      setIsLoading(false);
-      return;
-    }
     try {
-      const { user: profile } = await api.getProfile();
-      setUser(profile);
-      setToken(storedToken);
-    } catch {
-      api.logout();
+      const refreshedToken = await api.refreshToken();
+      if (refreshedToken) {
+        const { user: profile } = await api.getProfile();
+        setUser(profile);
+        setToken(refreshedToken);
+      } else {
+        setUser(null);
+        setToken(null);
+      }
+    } catch (err) {
+      await api.logout();
       setUser(null);
       setToken(null);
     } finally {
@@ -46,18 +50,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const result = await api.login(email, password);
     setUser(result.user);
     setToken(result.token);
+    setMockVerificationCode(null);
   };
 
   const register = async (name: string, email: string, password: string) => {
     const result = await api.register(name, email, password);
     setUser(result.user);
     setToken(result.token);
+    if (result.mockVerificationCode) {
+      setMockVerificationCode(result.mockVerificationCode);
+    } else {
+      setMockVerificationCode(null);
+    }
   };
 
-  const logout = () => {
-    api.logout();
+  const logout = async () => {
+    await api.logout();
     setUser(null);
     setToken(null);
+    setMockVerificationCode(null);
+  };
+
+  const verifyEmail = async (code: string) => {
+    if (!user) throw new Error('Not authenticated.');
+    await api.verify(user.email, code);
+    const { user: profile } = await api.getProfile();
+    setUser(profile);
   };
 
   return (
@@ -67,9 +85,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token,
         isAuthenticated: !!user && !!token,
         isLoading,
+        mockVerificationCode,
         login,
         register,
         logout,
+        verifyEmail,
       }}
     >
       {children}
