@@ -9,6 +9,7 @@ const fs = require('fs');
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const { generalLimiter } = require('./src/middleware/rateLimiter');
 const { errorHandler } = require('./src/middleware/errorHandler');
 const { caseConverter } = require('./src/middleware/caseConverter');
@@ -53,6 +54,7 @@ function createApp() {
     credentials: true,
   }));
   app.use(express.json({ limit: '1mb' }));
+  app.use(cookieParser());
   app.use(caseConverter);
   app.use(generalLimiter);
 
