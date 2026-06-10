@@ -8,13 +8,14 @@ import Insights from './pages/Insights';
 import Progress from './pages/Progress';
 import Assistant from './pages/Assistant';
 import Login from './pages/Login';
+import VerifyEmail from './pages/VerifyEmail';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
 function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -24,7 +25,15 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user && !user.isVerified) {
+    return <Navigate to="/verify-email" replace />;
+  }
+
+  return <>{children}</>;
 }
 
 export default function App() {
@@ -34,6 +43,7 @@ export default function App() {
         <AppProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
             <Route
               path="/"
               element={
