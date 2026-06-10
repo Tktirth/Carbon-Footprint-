@@ -2,6 +2,7 @@ export interface User {
   id: number;
   name: string;
   email: string;
+  isVerified: boolean;
 }
 
 export interface Assessment {
@@ -117,6 +118,7 @@ export interface ApiResponse<T> {
 export interface AuthResponse {
   token: string;
   user: User;
+  mockVerificationCode?: string;
 }
 
 export interface GoalFormData {

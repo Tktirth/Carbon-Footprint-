@@ -15,23 +15,45 @@ import type {
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
+let activeToken: string | null = null;
+
 function getToken(): string | null {
-  return localStorage.getItem('ecotrack_token');
+  return activeToken;
 }
 
 function setToken(token: string): void {
-  localStorage.setItem('ecotrack_token', token);
+  activeToken = token;
 }
 
 function removeToken(): void {
-  localStorage.removeItem('ecotrack_token');
+  activeToken = null;
+}
+
+let isRefreshing = false;
+let refreshPromise: Promise<string | null> | null = null;
+
+async function performTokenRefresh(): Promise<string | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) throw new Error('Refresh failed');
+    const data = await res.json();
+    setToken(data.token);
+    return data.token;
+  } catch (err) {
+    removeToken();
+    return null;
+  }
 }
 
 async function request<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = getToken();
+  const isAuth = endpoint.startsWith('/auth/');
+  let token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...((options.headers as Record<string, string>) || {}),
@@ -41,14 +63,39 @@ async function request<T>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
+  let response = await fetch(`${BASE_URL}${endpoint}`, {
     ...options,
     headers,
   });
 
+  // If unauthorized and not an authentication endpoint, try to refresh the token and retry the request
+  if (response.status === 401 && !isAuth && endpoint !== '/auth/refresh') {
+    if (!isRefreshing) {
+      isRefreshing = true;
+      refreshPromise = performTokenRefresh().finally(() => {
+        isRefreshing = false;
+        refreshPromise = null;
+      });
+    }
+
+    const newToken = await refreshPromise;
+    if (newToken) {
+      headers['Authorization'] = `Bearer ${newToken}`;
+      response = await fetch(`${BASE_URL}${endpoint}`, {
+        ...options,
+        headers,
+      });
+    } else {
+      window.location.href = '/login';
+      throw new Error('Unauthorized');
+    }
+  }
+
   if (response.status === 401) {
     removeToken();
-    window.location.href = '/login';
+    if (!isAuth) {
+      window.location.href = '/login';
+    }
     throw new Error('Unauthorized');
   }
 
@@ -87,15 +134,39 @@ export const api = {
     return result;
   },
 
-  async getProfile(): Promise<{ user: { id: number; name: string; email: string } }> {
-    return request('/auth/profile');
+  async getProfile(): Promise<{ user: User }> {
+    return request<{ user: User }>('/auth/profile');
   },
 
-  logout(): void {
-    removeToken();
+  async logout(): Promise<void> {
+    try {
+      await request('/auth/logout', { method: 'POST' });
+    } catch {
+      // ignore
+    } finally {
+      removeToken();
+    }
   },
 
   getToken,
+
+  async refreshToken(): Promise<string | null> {
+    if (!isRefreshing) {
+      isRefreshing = true;
+      refreshPromise = performTokenRefresh().finally(() => {
+        isRefreshing = false;
+        refreshPromise = null;
+      });
+    }
+    return refreshPromise;
+  },
+
+  async verify(email: string, code: string): Promise<{ message: string }> {
+    return request<{ message: string }>('/auth/verify', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    });
+  },
 
   async submitAssessment(data: AssessmentFormData): Promise<{
     assessment: Assessment;
