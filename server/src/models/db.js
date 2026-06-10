@@ -6,15 +6,20 @@ const fs = require('fs');
 const path = require('path');
 
 const DB_DIR = path.resolve(__dirname, '..', '..', 'data');
-const DB_FILE = process.env.DB_PATH || path.join(DB_DIR, 'carbon_footprint.db');
+let DB_FILE = process.env.DB_PATH || path.join(DB_DIR, 'carbon_footprint.db');
 
-// Enable Postgres if DATABASE_URL is provided
-const isPostgres = !!process.env.DATABASE_URL;
+// Use writeable /tmp directory on Google Cloud Run
+if (process.env.K_SERVICE) {
+  DB_FILE = '/tmp/carbon_footprint.db';
+}
+
+// Enable Postgres if DATABASE_URL is provided, but allow fallback
+let isPostgres = !!process.env.DATABASE_URL;
 
 let db;
 let pool;
 
-if (isPostgres) {
+function initPostgresPool() {
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: {
@@ -22,13 +27,20 @@ if (isPostgres) {
     },
     max: 5, // Protect Supabase connection exhaustion in serverless environments
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000
+    connectionTimeoutMillis: 5000 // 5 seconds connection timeout
   });
-} else {
-  // Ensure local data directory exists for SQLite
+}
+
+function ensureSqliteDir() {
   if (DB_FILE !== ':memory:' && !fs.existsSync(path.dirname(DB_FILE))) {
     fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
   }
+}
+
+if (isPostgres) {
+  initPostgresPool();
+} else {
+  ensureSqliteDir();
 }
 
 /**
@@ -48,8 +60,10 @@ async function initDb(dbPath) {
       await client.query(schema);
       console.log('⚡ Supabase PostgreSQL Database Initialised successfully.');
     } catch (err) {
-      console.error('❌ Failed to initialise Postgres schema:', err);
-      throw err;
+      console.error('⚠️ Failed to connect to Postgres/Supabase. Falling back to SQLite:', err.message);
+      isPostgres = false;
+      ensureSqliteDir();
+      initSqlite(dbPath);
     } finally {
       if (client) {
         // Release advisory lock and return client back to pool
@@ -58,18 +72,23 @@ async function initDb(dbPath) {
       }
     }
   } else {
-    const filePath = dbPath || DB_FILE;
-    if (db) {
-      try { db.close(); } catch (_) {}
-    }
-    db = new DatabaseSync(filePath);
-    db.exec('PRAGMA journal_mode = WAL;');
-    db.exec('PRAGMA foreign_keys = ON;');
-
-    const schemaPath = path.resolve(__dirname, '..', '..', 'database', 'schema.sql');
-    const schema = fs.readFileSync(schemaPath, 'utf-8');
-    db.exec(schema);
+    initSqlite(dbPath);
   }
+}
+
+function initSqlite(dbPath) {
+  const filePath = dbPath || DB_FILE;
+  if (db) {
+    try { db.close(); } catch (_) {}
+  }
+  db = new DatabaseSync(filePath);
+  db.exec('PRAGMA journal_mode = WAL;');
+  db.exec('PRAGMA foreign_keys = ON;');
+
+  const schemaPath = path.resolve(__dirname, '..', '..', 'database', 'schema.sql');
+  const schema = fs.readFileSync(schemaPath, 'utf-8');
+  db.exec(schema);
+  console.log('⚡ SQLite Database Initialised successfully.');
 }
 
 // Automatically fire init on startup
@@ -138,4 +157,13 @@ function getDb() {
   return isPostgres ? pool : db;
 }
 
-module.exports = { initDb, getDb, run, get, all, isPostgres };
+module.exports = {
+  initDb,
+  getDb,
+  run,
+  get,
+  all,
+  get isPostgres() {
+    return isPostgres;
+  }
+};

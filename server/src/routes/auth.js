@@ -3,7 +3,8 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
-const { run, get, isPostgres } = require('../models/db');
+const db = require('../models/db');
+const { run, get } = db;
 const {
   signAccessToken,
   signRefreshToken,
@@ -50,7 +51,7 @@ const loginValidation = [
 async function saveRefreshToken(userId, token) {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
-  const expiresVal = isPostgres ? expiresAt : expiresAt.toISOString();
+  const expiresVal = db.isPostgres ? expiresAt : expiresAt.toISOString();
 
   await run(
     'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
@@ -152,7 +153,7 @@ router.post('/login', authLimiter, loginValidation, async (req, res, next) => {
     await saveRefreshToken(user.id, refreshToken);
     setRefreshTokenCookie(res, refreshToken);
 
-    const isVerified = isPostgres ? !!user.is_verified : user.is_verified === 1;
+    const isVerified = db.isPostgres ? !!user.is_verified : user.is_verified === 1;
 
     return res.json({
       message: 'Login successful.',
@@ -183,7 +184,7 @@ router.post('/verify', async (req, res, next) => {
       return res.status(404).json({ error: 'User not found.' });
     }
 
-    const isVerified = isPostgres ? !!user.is_verified : user.is_verified === 1;
+    const isVerified = db.isPostgres ? !!user.is_verified : user.is_verified === 1;
     if (isVerified) {
       return res.json({ message: 'Account is already verified.' });
     }
@@ -193,7 +194,7 @@ router.post('/verify', async (req, res, next) => {
     }
 
     // Mark user as verified
-    const verifiedVal = isPostgres ? true : 1;
+    const verifiedVal = db.isPostgres ? true : 1;
     await run(
       'UPDATE users SET is_verified = ?, verification_code = NULL WHERE id = ?',
       [verifiedVal, user.id]
@@ -298,7 +299,7 @@ router.get('/profile', authenticateToken, async (req, res, next) => {
       return res.status(404).json({ error: 'User not found.' });
     }
 
-    const isVerified = isPostgres ? !!user.is_verified : user.is_verified === 1;
+    const isVerified = db.isPostgres ? !!user.is_verified : user.is_verified === 1;
 
     return res.json({
       user: { id: user.id, name: user.name, email: user.email, isVerified }
