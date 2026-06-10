@@ -5,21 +5,22 @@ import Button from '../components/ui/Button';
 import { api } from '../services/api';
 import type { ChatMessage } from '../types';
 
+const WELCOME_MESSAGE: ChatMessage = {
+  role: 'assistant',
+  content: "Hello! I'm your Smart Sustainability Coach. 🌍\n\nI can help you understand your carbon footprint, explain your scoring metrics, and recommend high-impact improvement plans based on your habits.\n\nHow can I help you today?",
+  suggestions: [
+    'How is my carbon footprint calculated?',
+    'Explain my sustainability score',
+    'What is my largest emission source?',
+    'Give me some easy tips to save CO₂',
+  ],
+};
+
 export default function AssistantPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: 'assistant',
-      content: "Hello! I'm your Smart Sustainability Coach. 🌍\n\nI can help you understand your carbon footprint, explain your scoring metrics, and recommend high-impact improvement plans based on your habits.\n\nHow can I help you today?",
-      suggestions: [
-        'How is my carbon footprint calculated?',
-        'Explain my sustainability score',
-        'What is my largest emission source?',
-        'Give me some easy tips to save CO₂',
-      ],
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -29,6 +30,25 @@ export default function AssistantPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, isTyping]);
+
+  // Load persistent chat history on mount
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const { messages: history } = await api.getChatHistory();
+        if (history && history.length > 0) {
+          // Prepend welcome message, then show DB-stored history
+          setMessages([WELCOME_MESSAGE, ...history]);
+        }
+      } catch (err) {
+        console.warn('Could not load chat history:', err);
+        // Keep the welcome message if history load fails
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+    loadHistory();
+  }, []);
 
   const handleSendMessage = async (textToSend: string) => {
     if (!textToSend.trim()) return;
@@ -71,61 +91,78 @@ export default function AssistantPage() {
   return (
     <Layout>
       <div className="max-w-4xl mx-auto h-[calc(100vh-10rem)] flex flex-col space-y-4 animate-fade-in">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Sustainability Assistant</h1>
-          <p className="text-gray-400 mt-1">
-            Get instant answers to your environmental questions and receive personalized guidance.
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-white">Sustainability Assistant</h1>
+            <p className="text-gray-400 mt-1">
+              Get instant answers to your environmental questions and receive personalized guidance.
+            </p>
+          </div>
+          {!isLoadingHistory && messages.length > 1 && (
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              Chat history synced
+            </div>
+          )}
         </div>
 
         <Card className="flex-1 flex flex-col p-0 overflow-hidden" padding="none">
           {/* Chat Messages */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4" role="log" aria-label="Chat messages history">
-            {messages.map((msg, index) => {
-              const isUser = msg.role === 'user';
-              return (
-                <div
-                  key={index}
-                  className={`flex ${isUser ? 'justify-end' : 'justify-start'} animate-fade-in`}
-                >
-                  <div className={`flex gap-3 max-w-[80%] ${isUser ? 'flex-row-reverse' : ''}`}>
-                    {/* Avatar */}
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-md
-                      ${isUser ? 'bg-emerald-500 shadow-emerald-500/20' : 'bg-zinc-800 border border-zinc-700'}`}>
-                      {isUser ? '👤' : '🤖'}
-                    </div>
-
-                    {/* Bubble */}
-                    <div className="space-y-3">
-                      <div className={`p-4 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap
-                        ${
-                          isUser
-                            ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-tr-none'
-                            : 'bg-white/5 border border-white/5 text-gray-300 rounded-tl-none'
-                        }`}
-                      >
-                        {msg.content}
+            {isLoadingHistory ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex items-center gap-3 text-gray-400">
+                  <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-emerald-500" />
+                  Loading conversation history...
+                </div>
+              </div>
+            ) : (
+              messages.map((msg, index) => {
+                const isUser = msg.role === 'user';
+                return (
+                  <div
+                    key={index}
+                    className={`flex ${isUser ? 'justify-end' : 'justify-start'} animate-fade-in`}
+                  >
+                    <div className={`flex gap-3 max-w-[80%] ${isUser ? 'flex-row-reverse' : ''}`}>
+                      {/* Avatar */}
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-md
+                        ${isUser ? 'bg-emerald-500 shadow-emerald-500/20' : 'bg-zinc-800 border border-zinc-700'}`}>
+                        {isUser ? '👤' : '🤖'}
                       </div>
 
-                      {/* Suggestions (only for assistant and only on latest message) */}
-                      {!isUser && msg.suggestions && msg.suggestions.length > 0 && index === messages.length - 1 && (
-                        <div className="flex flex-wrap gap-2 pt-1">
-                          {msg.suggestions.map((sug, sIdx) => (
-                            <button
-                              key={sIdx}
-                              onClick={() => handleSendMessage(sug)}
-                              className="px-3.5 py-1.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all text-left"
-                            >
-                              {sug}
-                            </button>
-                          ))}
+                      {/* Bubble */}
+                      <div className="space-y-3">
+                        <div className={`p-4 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap
+                          ${
+                            isUser
+                              ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-tr-none'
+                              : 'bg-white/5 border border-white/5 text-gray-300 rounded-tl-none'
+                          }`}
+                        >
+                          {msg.content}
                         </div>
-                      )}
+
+                        {/* Suggestions (only for assistant and only on latest message) */}
+                        {!isUser && msg.suggestions && msg.suggestions.length > 0 && index === messages.length - 1 && (
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {msg.suggestions.map((sug, sIdx) => (
+                              <button
+                                key={sIdx}
+                                onClick={() => handleSendMessage(sug)}
+                                className="px-3.5 py-1.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all text-left"
+                              >
+                                {sug}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
 
             {/* Typing Indicator */}
             {isTyping && (

@@ -7,7 +7,7 @@ import ProgressBar from '../components/ui/ProgressBar';
 import TrendChart from '../components/charts/TrendChart';
 import { api } from '../services/api';
 import { formatCO2, formatNumber } from '../utils/format';
-import type { DashboardSummary, Goal } from '../types';
+import type { DashboardSummary, Goal, LeaderboardEntry } from '../types';
 
 export default function ProgressPage() {
   const [data, setData] = useState<DashboardSummary | null>(null);
@@ -20,6 +20,11 @@ export default function ProgressPage() {
   const [goalDate, setGoalDate] = useState('');
   const [isSubmittingGoal, setIsSubmittingGoal] = useState(false);
   const [goalError, setGoalError] = useState('');
+
+  // Leaderboard state
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [currentUserStats, setCurrentUserStats] = useState<{ totalSavedKg: number; completedActions: number } | null>(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
 
   const fetchData = async () => {
     try {
@@ -35,6 +40,14 @@ export default function ProgressPage() {
 
   useEffect(() => {
     fetchData();
+    // Fetch leaderboard
+    api.getLeaderboard()
+      .then((res) => {
+        setLeaderboard(res.leaderboard || []);
+        setCurrentUserStats(res.currentUserStats);
+      })
+      .catch(() => { /* Leaderboard load failed silently */ })
+      .finally(() => setLeaderboardLoading(false));
   }, []);
 
   const handleCreateGoal = async (e: React.FormEvent) => {
@@ -231,6 +244,78 @@ export default function ProgressPage() {
             </form>
           </Card>
         </div>
+
+        {/* Leaderboard */}
+        <Card title="🏆 Sustainability Leaderboard">
+          <p className="text-gray-400 text-sm mb-4">
+            Top users ranked by total CO₂ saved from completed actions.
+          </p>
+
+          {leaderboardLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-emerald-500" />
+            </div>
+          ) : leaderboard.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <span className="text-3xl mb-2 block" aria-hidden="true">🏅</span>
+              <p className="text-sm">No users on the leaderboard yet. Complete recommendations to start saving CO₂!</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {leaderboard.map((entry) => {
+                const rankEmoji = entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `#${entry.rank}`;
+                return (
+                  <div
+                    key={entry.rank}
+                    className={`flex items-center gap-4 p-3 rounded-xl transition-all
+                      ${entry.isCurrentUser
+                        ? 'bg-emerald-500/10 border border-emerald-500/30 shadow-lg shadow-emerald-500/5'
+                        : 'bg-white/[0.02] border border-white/5 hover:border-white/10'
+                      }`}
+                  >
+                    <div className="w-10 text-center text-lg font-bold">
+                      {rankEmoji}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`font-semibold truncate ${entry.isCurrentUser ? 'text-emerald-400' : 'text-white'}`}>
+                          {entry.name}
+                        </span>
+                        {entry.isCurrentUser && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold uppercase tracking-wider">
+                            You
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-500">{entry.completedActions} action{entry.completedActions !== 1 ? 's' : ''} completed</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-emerald-400 text-sm">{formatCO2(entry.totalSavedKg)}</p>
+                      <p className="text-[10px] text-gray-500 uppercase tracking-wider">CO₂ saved</p>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Current user not on board */}
+              {currentUserStats && (
+                <div className="mt-4 pt-4 border-t border-white/5">
+                  <div className="flex items-center gap-4 p-3 rounded-xl bg-white/[0.02] border border-dashed border-white/10">
+                    <div className="w-10 text-center text-sm text-gray-500 font-bold">—</div>
+                    <div className="flex-1">
+                      <span className="font-semibold text-gray-400">Your Stats</span>
+                      <p className="text-xs text-gray-500">{currentUserStats.completedActions} action{currentUserStats.completedActions !== 1 ? 's' : ''} completed</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-gray-400 text-sm">{formatCO2(currentUserStats.totalSavedKg)}</p>
+                      <p className="text-[10px] text-gray-500">Complete more actions to rank up!</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
       </div>
     </Layout>
   );

@@ -240,4 +240,168 @@ router.get('/latest', async (req, res, next) => {
   }
 });
 
+// ─── POST /latest/plan — Generate AI Sustainability Action Plan ─────────────
+
+/**
+ * Uses Gemini (or structured fallback) to generate a comprehensive, personalised
+ * Markdown-formatted Sustainability Action Plan based on the user's latest
+ * assessment, scores, and recommendations. Saves the result to the
+ * sustainability_plans table for future retrieval.
+ */
+router.post('/latest/plan', async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    // Load latest assessment
+    const assessment = await get(
+      'SELECT * FROM assessments WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
+      [userId]
+    );
+
+    if (!assessment) {
+      return res.status(404).json({ error: 'No assessments found. Submit one first.' });
+    }
+
+    const scores = await get(
+      'SELECT * FROM sustainability_scores WHERE assessment_id = ?',
+      [assessment.id]
+    );
+
+    const recommendations = await all(
+      'SELECT * FROM recommendations WHERE assessment_id = ? ORDER BY (co2_reduction_kg * priority) DESC',
+      [assessment.id]
+    );
+
+    let planText = '';
+
+    // Try Gemini first
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        const { GoogleGenerativeAI } = require('@google/generative-ai');
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+        const topRecs = recommendations.slice(0, 5).map(
+          (r, i) => `${i + 1}. [${r.category}] ${r.title} — saves ${r.co2_reduction_kg} kg CO₂/yr (${r.difficulty} difficulty)`
+        ).join('\n');
+
+        const prompt = `You are a sustainability expert. Create a comprehensive, actionable Sustainability Action Plan for a user with these carbon footprint metrics:
+
+EMISSIONS:
+- Daily: ${assessment.daily_emissions_kg} kg CO₂
+- Monthly: ${assessment.monthly_emissions_kg} kg CO₂
+- Annual: ${assessment.annual_emissions_kg} kg CO₂
+- Transport: ${assessment.transport_emissions_kg} kg/yr
+- Energy: ${assessment.energy_emissions_kg} kg/yr
+- Food: ${assessment.food_emissions_kg} kg/yr
+- Consumption: ${assessment.consumption_emissions_kg} kg/yr
+- Waste: ${assessment.waste_emissions_kg} kg/yr
+- Water: ${assessment.water_emissions_kg} kg/yr
+
+SUSTAINABILITY SCORES (0-100, higher is better):
+- Overall: ${scores?.overall_score || 'N/A'}
+- Transport: ${scores?.transport_score || 'N/A'}
+- Energy: ${scores?.energy_score || 'N/A'}
+- Food: ${scores?.food_score || 'N/A'}
+- Consumption: ${scores?.consumption_score || 'N/A'}
+- Waste: ${scores?.waste_score || 'N/A'}
+
+TOP RECOMMENDED ACTIONS:
+${topRecs}
+
+USER HABITS:
+- Vehicle: ${assessment.vehicle_type}, ${assessment.travel_km_per_week} km/week
+- Diet: ${assessment.diet_type}
+- Electricity: ${assessment.electricity_kwh_per_month} kWh/month
+- AC: ${assessment.ac_hours_per_day} hrs/day
+- Online orders: ${assessment.online_orders_per_month}/month
+- Recycling: ${assessment.recycling_percentage}%
+
+Format the plan in Markdown with these sections:
+1. **Executive Summary** — 2-3 sentence overview of the user's footprint status
+2. **30-Day Quick Wins** — 3-4 immediate, easy actions with estimated impact
+3. **90-Day Transformation Plan** — 4-5 medium-term changes with timelines
+4. **Long-Term Sustainability Goals** — 2-3 ambitious annual targets
+5. **Estimated Impact** — projected total CO₂ reduction if all actions are completed
+
+Keep the plan under 500 words, practical, and motivating. Use emoji sparingly for visual appeal.`;
+
+        const result = await model.generateContent(prompt);
+        planText = result.response.text().trim();
+      } catch (err) {
+        console.error('❌ Gemini plan generation failed, using structured fallback:', err.message);
+      }
+    }
+
+    // Structured fallback if Gemini unavailable or failed
+    if (!planText) {
+      const topCat = ['transport', 'energy', 'food', 'consumption', 'waste']
+        .map(c => ({
+          name: c,
+          emissions: assessment[`${c}_emissions_kg`] || 0,
+          score: scores?.[`${c}_score`] || 50,
+        }))
+        .sort((a, b) => b.emissions - a.emissions);
+
+      const worstCategory = topCat[0];
+      const totalReduction = recommendations
+        .slice(0, 5)
+        .reduce((sum, r) => sum + r.co2_reduction_kg, 0);
+
+      planText = `# 🌍 Your Sustainability Action Plan
+
+## Executive Summary
+Your annual carbon footprint is **${Math.round(assessment.annual_emissions_kg).toLocaleString()} kg CO₂** (${Math.round(assessment.daily_emissions_kg)} kg/day). Your biggest emission source is **${worstCategory.name}** at ${Math.round(worstCategory.emissions)} kg/year. Your overall sustainability score is **${scores?.overall_score || 'N/A'}/100**.
+
+## 🚀 30-Day Quick Wins
+${recommendations.slice(0, 3).map((r, i) => `${i + 1}. **${r.title}** — ${r.description} *(saves ${r.co2_reduction_kg} kg CO₂/yr)*`).join('\n')}
+
+## 📈 90-Day Transformation Plan
+${recommendations.slice(0, 5).map((r, i) => `${i + 1}. **[${r.category.toUpperCase()}]** ${r.title} — ${r.difficulty} difficulty, saves $${r.annual_savings_usd}/yr`).join('\n')}
+
+## 🎯 Long-Term Goals
+1. Reduce annual emissions by **${Math.round(totalReduction)} kg CO₂** (${Math.round((totalReduction / assessment.annual_emissions_kg) * 100)}% reduction)
+2. Achieve an overall sustainability score above **75/100**
+3. Maintain recycling rate above **60%**
+
+## 📊 Estimated Impact
+If you complete all recommended actions, you could save approximately **${Math.round(totalReduction)} kg CO₂ per year** — equivalent to planting ${Math.round(totalReduction / 22)} trees! 🌳`;
+    }
+
+    // Save plan to database
+    await run(
+      'INSERT INTO sustainability_plans (user_id, assessment_id, plan_text) VALUES (?, ?, ?)',
+      [userId, assessment.id, planText]
+    );
+
+    return res.status(201).json({ plan: planText });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── GET /latest/plan — Retrieve latest saved Action Plan ───────────────────
+
+/**
+ * Return the most recently generated sustainability action plan for the user.
+ */
+router.get('/latest/plan', async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    const plan = await get(
+      'SELECT plan_text, created_at FROM sustainability_plans WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
+      [userId]
+    );
+
+    if (!plan) {
+      return res.status(404).json({ error: 'No action plan found. Generate one first.' });
+    }
+
+    return res.json({ plan: plan.plan_text, createdAt: plan.created_at });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

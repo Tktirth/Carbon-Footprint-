@@ -219,4 +219,103 @@ describe('API Integration Tests', () => {
     expect(res.body.reply.length).toBeGreaterThan(0);
     expect(res.body.suggestions).toBeDefined();
   });
+
+  // ── Chat History Persistence ──────────────────────────────────────────────
+
+  it('GET /api/assistant/history returns persisted messages', async () => {
+    const regRes = await req('POST', '/api/auth/register', {
+      name: 'History User', email: 'history@example.com', password: 'password123',
+    });
+    const token = regRes.body.token;
+
+    // Send a message (this persists both user msg + assistant reply)
+    await req('POST', '/api/assistant/chat', {
+      message: 'Hello, how are you?',
+    }, token);
+
+    // Fetch history
+    const historyRes = await req('GET', '/api/assistant/history', null, token);
+    expect(historyRes.status).toBe(200);
+    expect(historyRes.body.messages).toBeDefined();
+    expect(historyRes.body.messages.length).toBeGreaterThanOrEqual(2); // user + assistant
+    // Find the user message and assistant reply in the history
+    const roles = historyRes.body.messages.map(m => m.role);
+    expect(roles).toContain('user');
+    expect(roles).toContain('assistant');
+  });
+
+  // ── Action Plan ───────────────────────────────────────────────────────────
+
+  it('POST /api/assessments/latest/plan generates and saves an action plan', async () => {
+    const regRes = await req('POST', '/api/auth/register', {
+      name: 'Plan User', email: 'plan@example.com', password: 'password123',
+    });
+    const token = regRes.body.token;
+
+    // Submit assessment first
+    await req('POST', '/api/assessments', {
+      vehicle_type: 'car_petrol',
+      travel_km_per_week: 200,
+      electricity_kwh_per_month: 400,
+      diet_type: 'high_meat',
+      waste_bags_per_week: 4,
+      water_liters_per_day: 150,
+    }, token);
+
+    // Generate plan
+    const planRes = await req('POST', '/api/assessments/latest/plan', {}, token);
+    expect(planRes.status).toBe(201);
+    expect(planRes.body.plan).toBeDefined();
+    expect(planRes.body.plan.length).toBeGreaterThan(50);
+
+    // Retrieve saved plan
+    const getRes = await req('GET', '/api/assessments/latest/plan', null, token);
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.plan).toBeDefined();
+    expect(getRes.body.plan.length).toBeGreaterThan(50);
+  });
+
+  it('POST /api/assessments/latest/plan returns 404 with no assessment', async () => {
+    const regRes = await req('POST', '/api/auth/register', {
+      name: 'NoPlan User', email: 'noplan@example.com', password: 'password123',
+    });
+    const token = regRes.body.token;
+
+    const planRes = await req('POST', '/api/assessments/latest/plan', {}, token);
+    expect(planRes.status).toBe(404);
+  });
+
+  // ── Leaderboard ───────────────────────────────────────────────────────────
+
+  it('GET /api/progress/leaderboard returns ranking data', async () => {
+    const regRes = await req('POST', '/api/auth/register', {
+      name: 'Leader User', email: 'leader@example.com', password: 'password123',
+    });
+    const token = regRes.body.token;
+
+    // Submit assessment and complete a recommendation
+    const assessRes = await req('POST', '/api/assessments', {
+      vehicle_type: 'car_petrol',
+      travel_km_per_week: 200,
+      electricity_kwh_per_month: 400,
+      diet_type: 'mixed',
+      waste_bags_per_week: 3,
+      water_liters_per_day: 120,
+    }, token);
+
+    // Fetch the persisted recommendations via the API to get their IDs
+    const recsRes = await req('GET', '/api/recommendations', null, token);
+    expect(recsRes.body.recommendations.length).toBeGreaterThan(0);
+    const recId = recsRes.body.recommendations[0].id;
+    await req('PATCH', `/api/recommendations/${recId}/complete`, {}, token);
+
+    // Fetch leaderboard
+    const lbRes = await req('GET', '/api/progress/leaderboard', null, token);
+    expect(lbRes.status).toBe(200);
+    expect(lbRes.body.leaderboard).toBeDefined();
+    expect(lbRes.body.leaderboard.length).toBeGreaterThan(0);
+    expect(lbRes.body.leaderboard[0].rank).toBe(1);
+    expect(lbRes.body.leaderboard[0].totalSavedKg).toBeGreaterThan(0);
+    expect(lbRes.body.leaderboard[0].isCurrentUser).toBe(true);
+  });
 });

@@ -17,6 +17,12 @@ export default function InsightsPage() {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [completingId, setCompletingId] = useState<number | null>(null);
 
+  // Action Plan state
+  const [actionPlan, setActionPlan] = useState<string | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planError, setPlanError] = useState('');
+  const [showPlan, setShowPlan] = useState(false);
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -31,7 +37,25 @@ export default function InsightsPage() {
 
   useEffect(() => {
     fetchData();
+    // Try to load existing plan
+    api.getLatestActionPlan()
+      .then((res) => { setActionPlan(res.plan); setShowPlan(true); })
+      .catch(() => { /* No existing plan, that's fine */ });
   }, []);
+
+  const handleGeneratePlan = async () => {
+    setPlanLoading(true);
+    setPlanError('');
+    try {
+      const res = await api.generateActionPlan();
+      setActionPlan(res.plan);
+      setShowPlan(true);
+    } catch (err) {
+      setPlanError(err instanceof Error ? err.message : 'Failed to generate action plan');
+    } finally {
+      setPlanLoading(false);
+    }
+  };
 
   const handleCompleteRecommendation = async (id: number) => {
     setCompletingId(id);
@@ -109,6 +133,65 @@ export default function InsightsPage() {
             Data-driven analysis of your habits and actionable plans to reduce your footprint.
           </p>
         </div>
+
+        {/* AI Action Plan Section */}
+        <Card className="relative overflow-hidden border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 to-transparent">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-xl">
+                🤖
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">AI Sustainability Action Plan</h2>
+                <p className="text-gray-400 text-sm">Powered by Gemini — personalized to your assessment data</p>
+              </div>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleGeneratePlan}
+              loading={planLoading}
+            >
+              {actionPlan ? '🔄 Regenerate' : '✨ Generate Plan'}
+            </Button>
+          </div>
+
+          {planError && (
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm mb-4" role="alert">
+              {planError}
+            </div>
+          )}
+
+          {showPlan && actionPlan && (
+            <div className="mt-2 p-5 rounded-2xl bg-black/30 border border-emerald-500/10">
+              <div className="prose prose-invert prose-sm prose-emerald max-w-none
+                [&_h1]:text-xl [&_h1]:font-bold [&_h1]:text-emerald-400 [&_h1]:mb-3
+                [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-white [&_h2]:mt-5 [&_h2]:mb-2
+                [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-gray-200
+                [&_p]:text-gray-300 [&_p]:leading-relaxed
+                [&_li]:text-gray-300 [&_li]:leading-relaxed
+                [&_strong]:text-white
+                [&_ol]:list-decimal [&_ol]:pl-5
+                [&_ul]:list-disc [&_ul]:pl-5">
+                {actionPlan.split('\n').map((line, i) => {
+                  if (line.startsWith('# ')) return <h1 key={i}>{line.slice(2)}</h1>;
+                  if (line.startsWith('## ')) return <h2 key={i}>{line.slice(3)}</h2>;
+                  if (line.startsWith('### ')) return <h3 key={i}>{line.slice(4)}</h3>;
+                  if (line.match(/^\d+\.\s/)) return <p key={i} className="ml-4">{line}</p>;
+                  if (line.startsWith('- ')) return <p key={i} className="ml-4">• {line.slice(2)}</p>;
+                  if (line.trim() === '') return <br key={i} />;
+                  return <p key={i}>{line}</p>;
+                })}
+              </div>
+            </div>
+          )}
+
+          {!showPlan && !planLoading && (
+            <div className="text-center py-8 text-gray-500">
+              <p className="text-sm">Click "Generate Plan" to create a personalized sustainability roadmap based on your assessment data.</p>
+            </div>
+          )}
+        </Card>
 
         {/* Top Insights Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

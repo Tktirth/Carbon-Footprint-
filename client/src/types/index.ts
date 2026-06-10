@@ -124,3 +124,16 @@ export interface GoalFormData {
   targetReductionKg: number;
   targetDate: string;
 }
+
+export interface LeaderboardEntry {
+  rank: number;
+  name: string;
+  totalSavedKg: number;
+  completedActions: number;
+  isCurrentUser: boolean;
+}
+
+export interface ActionPlan {
+  plan: string;
+  createdAt?: string;
+}

@@ -3,17 +3,44 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken } = require('../middleware/auth');
-const { get } = require('../models/db');
+const { run, get, all } = require('../models/db');
 const { processMessage } = require('../services/assistantEngine');
 
 const router = express.Router();
 router.use(authenticateToken);
 
+// ─── GET /history — Retrieve persistent chat history ────────────────────────
+
+/**
+ * Return the last 50 chat messages for the authenticated user,
+ * ordered oldest-first so the frontend can render them chronologically.
+ */
+router.get('/history', async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    const messages = await all(
+      `SELECT role, content, created_at
+       FROM chat_messages
+       WHERE user_id = ?
+       ORDER BY id DESC
+       LIMIT 50`,
+      [userId]
+    );
+
+    // Reverse to oldest-first for chat display
+    return res.json({ messages: messages.reverse() });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ─── POST /chat — Process a chat message ────────────────────────────────────
 
 /**
- * Receive a message, load the user's latest assessment context, run it through
- * the assistant engine, and return the reply with follow-up suggestions.
+ * Receive a message, persist it, load the user's latest assessment context,
+ * load the last 8 messages from the database for conversation memory,
+ * run it through the assistant engine, persist the AI reply, and return it.
  */
 router.post('/chat', [
   body('message')
@@ -28,9 +55,26 @@ router.post('/chat', [
     }
 
     const userId = req.user.id;
-    const { message, history } = req.body;
+    const { message } = req.body;
 
-    // Load user context
+    // 1. Persist user message
+    await run(
+      'INSERT INTO chat_messages (user_id, role, content) VALUES (?, ?, ?)',
+      [userId, 'user', message]
+    );
+
+    // 2. Load conversation history from DB (last 8 messages for context)
+    const dbHistory = await all(
+      `SELECT role, content
+       FROM chat_messages
+       WHERE user_id = ?
+       ORDER BY created_at DESC
+       LIMIT 8`,
+      [userId]
+    );
+    const history = dbHistory.reverse(); // oldest-first
+
+    // 3. Load user context
     let userData = null;
 
     const assessment = await get(
@@ -63,7 +107,14 @@ router.post('/chat', [
       };
     }
 
+    // 4. Process through AI engine (with DB-sourced history)
     const response = await processMessage(message, userData, history);
+
+    // 5. Persist assistant reply
+    await run(
+      'INSERT INTO chat_messages (user_id, role, content) VALUES (?, ?, ?)',
+      [userId, 'assistant', response.reply]
+    );
 
     return res.json({
       reply: response.reply,

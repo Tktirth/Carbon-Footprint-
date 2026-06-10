@@ -196,4 +196,60 @@ router.patch('/goals/:id', [
   }
 });
 
+// ─── GET /leaderboard — Top sustainability savers ───────────────────────────
+
+/**
+ * Compile the top 10 users ranked by total CO₂ reduction from completed
+ * recommendations. Only shows the user's first name for privacy.
+ */
+router.get('/leaderboard', async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    const leaderboard = await all(
+      `SELECT u.id, u.name, COALESCE(SUM(r.co2_reduction_kg), 0) as total_saved_kg,
+              COUNT(r.id) as completed_actions
+       FROM users u
+       JOIN recommendations r ON r.user_id = u.id
+       WHERE r.is_completed = 1
+       GROUP BY u.id, u.name
+       ORDER BY total_saved_kg DESC
+       LIMIT 10`,
+      []
+    );
+
+    // Add rank and privacy-safe display name
+    const ranked = leaderboard.map((entry, idx) => ({
+      rank: idx + 1,
+      name: entry.name.split(' ')[0], // First name only for privacy
+      totalSavedKg: Math.round(entry.total_saved_kg * 100) / 100,
+      completedActions: entry.completed_actions,
+      isCurrentUser: entry.id === userId,
+    }));
+
+    // Check if current user is on the leaderboard
+    const userOnBoard = ranked.some(e => e.isCurrentUser);
+
+    // If not, get the user's own stats
+    let currentUserStats = null;
+    if (!userOnBoard) {
+      const myStats = await get(
+        `SELECT COALESCE(SUM(r.co2_reduction_kg), 0) as total_saved_kg,
+                COUNT(r.id) as completed_actions
+         FROM recommendations r
+         WHERE r.user_id = ? AND r.is_completed = 1`,
+        [userId]
+      );
+      currentUserStats = {
+        totalSavedKg: Math.round((myStats?.total_saved_kg || 0) * 100) / 100,
+        completedActions: myStats?.completed_actions || 0,
+      };
+    }
+
+    return res.json({ leaderboard: ranked, currentUserStats });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

@@ -9,6 +9,8 @@ import type {
   Goal,
   GoalFormData,
   ChatMessage,
+  LeaderboardEntry,
+  ActionPlan,
 } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
@@ -159,11 +161,31 @@ export const api = {
   },
 
   // Chat
-  async chatWithAssistant(message: string, history?: ChatMessage[]): Promise<{ reply: string; suggestions: string[] }> {
+  async chatWithAssistant(message: string): Promise<{ reply: string; suggestions: string[] }> {
     return request('/assistant/chat', {
       method: 'POST',
-      body: JSON.stringify({ message, history }),
+      body: JSON.stringify({ message }),
     });
+  },
+
+  async getChatHistory(): Promise<{ messages: ChatMessage[] }> {
+    return request('/assistant/history');
+  },
+
+  // Action Plan
+  async generateActionPlan(): Promise<ActionPlan> {
+    return request('/assessments/latest/plan', {
+      method: 'POST',
+    });
+  },
+
+  async getLatestActionPlan(): Promise<ActionPlan> {
+    return request('/assessments/latest/plan');
+  },
+
+  // Leaderboard
+  async getLeaderboard(): Promise<{ leaderboard: LeaderboardEntry[]; currentUserStats: { totalSavedKg: number; completedActions: number } | null }> {
+    return request('/progress/leaderboard');
   },
 };
 
