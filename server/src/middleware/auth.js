@@ -44,7 +44,59 @@ function authenticateToken(req, res, next) {
 }
 
 /**
- * Sign a JWT for the given user payload.
+ * Sign a short-lived access JWT for the given user payload.
+ * @param {{ id: number, email: string, name: string }} user
+ * @returns {string} signed JWT (expires in 15m)
+ */
+function signAccessToken(user) {
+  return jwt.sign(
+    { id: user.id, email: user.email, name: user.name },
+    JWT_SECRET,
+    { expiresIn: '15m' }
+  );
+}
+
+/**
+ * Sign a long-lived refresh JWT for the given user payload.
+ * @param {{ id: number, email: string, name: string }} user
+ * @returns {string} signed JWT (expires in 7d)
+ */
+function signRefreshToken(user) {
+  return jwt.sign(
+    { id: user.id, email: user.email, name: user.name },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+}
+
+/**
+ * Set the HttpOnly Secure SameSite cookie containing the refresh token.
+ * @param {import('express').Response} res
+ * @param {string} token
+ */
+function setRefreshTokenCookie(res, token) {
+  res.cookie('jid', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days in milliseconds
+  });
+}
+
+/**
+ * Clear the refresh token cookie.
+ * @param {import('express').Response} res
+ */
+function clearRefreshTokenCookie(res) {
+  res.clearCookie('jid', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
+  });
+}
+
+/**
+ * Sign a JWT for the given user payload (backward compatible wrapper).
  * @param {{ id: number, email: string, name: string }} user
  * @returns {string} signed JWT (expires in 24h)
  */
@@ -56,4 +108,11 @@ function signToken(user) {
   );
 }
 
-module.exports = { authenticateToken, signToken };
+module.exports = {
+  authenticateToken,
+  signToken,
+  signAccessToken,
+  signRefreshToken,
+  setRefreshTokenCookie,
+  clearRefreshTokenCookie
+};
