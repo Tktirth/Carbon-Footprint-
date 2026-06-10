@@ -54,6 +54,12 @@ async function request<T>(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
+    if (errorData.errors && Array.isArray(errorData.errors)) {
+      const msgs = errorData.errors.map((e: any) => e.msg).filter(Boolean);
+      if (msgs.length > 0) {
+        throw new Error(msgs.join(' '));
+      }
+    }
     throw new Error(errorData.error || errorData.message || `Request failed with status ${response.status}`);
   }
 
