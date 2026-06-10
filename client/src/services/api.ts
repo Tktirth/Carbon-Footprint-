@@ -1,4 +1,5 @@
 import type {
+  User,
   AssessmentFormData,
   AuthResponse,
   Assessment,
