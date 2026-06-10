@@ -63,7 +63,12 @@ function signAccessToken(user) {
  */
 function signRefreshToken(user) {
   return jwt.sign(
-    { id: user.id, email: user.email, name: user.name },
+    {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      jti: Math.random().toString(36).substring(2, 15) + Date.now()
+    },
     JWT_SECRET,
     { expiresIn: '7d' }
   );
