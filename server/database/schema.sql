@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
+  is_verified INTEGER NOT NULL DEFAULT 0,
+  verification_code TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -132,3 +134,13 @@ CREATE TABLE IF NOT EXISTS sustainability_plans (
 CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON chat_messages(user_id);
 CREATE INDEX IF NOT EXISTS idx_sustainability_plans_user_id ON sustainability_plans(user_id);
 
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  token TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
