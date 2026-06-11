@@ -4,6 +4,9 @@ build/
 .env
 .env.*
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
 *.sqlite
 coverage/
 .DS_Store
