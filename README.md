@@ -27,7 +27,7 @@ sequenceDiagram
     actor User as "User (Client)"
     participant Server as "Express Server"
     participant AI as "Gemini 2.0 API"
-    database DB as "Database (Postgres/SQLite)"
+    participant DB as "Database (Postgres/SQLite)"
 
     User->>Server: Submit Carbon Assessment
     Server->>Server: Calculate Emissions (Scientific Formulas)
