@@ -219,6 +219,61 @@ The frontend application will start on `http://localhost:5173`. API requests are
 
 ---
 
+## 📖 Step-by-Step Usage Guide (For Judges & Users)
+
+To evaluate the application either locally or on the deployed platform, follow this sequence:
+
+### 1. Account Creation & Password Sign-In
+* Navigate to the registration page (`/login` or click "Create one" at the bottom of the card).
+* Fill in a **Full Name**, a **valid email address**, and a password (minimum 8 characters).
+* Click **Create Account**. The system automatically registers you, generates your session tokens, signs you in, and redirects you directly to the home Dashboard—**no email verification delay required**.
+
+### 2. Take Your First Carbon Assessment
+* Click **Assessment** in the navigation bar.
+* Follow the 6-step questionnaire wizard:
+  1. **Transport**: Select your vehicle type (e.g. `Petrol Car`), specify weekly travel (e.g., `120 km`), public transit usage, and annual flights (e.g., `2`).
+  2. **Energy**: Enter monthly electricity usage (e.g., `250 kWh`), AC runtime (e.g., `4 hours/day`), and appliance efficiency.
+  3. **Food**: Select your diet style (options range from Vegan to High-Meat with explanations).
+  4. **Consumption**: Enter online orders, clothing items bought, and electronics.
+  5. **Waste**: Adjust the recycling slider (e.g., `40%`) and bags of garbage per week.
+  6. **Water**: Enter daily water consumption (e.g., `150 liters`).
+* On the final page, click **Submit Assessment**.
+
+### 3. Explore the Dashboard & Scientific Calculations
+* Once submitted, you are redirected to the **Dashboard**.
+* Review your circular **Sustainability Score Gauge** (color-coded red/amber/emerald/green based on your score from 0 to 100).
+* View your categorized carbon breakdown chart (Pie Chart) and category ratings (Radar Chart).
+* Read the automated **AI Key Insights** comparing your profile to global targets.
+
+### 4. Generate Your AI-Powered Action Plan
+* Go to the **Insights** tab.
+* Click **Generate Action Plan** at the top.
+* The system calls **Google Gemini 2.0 Flash** with your complete profile. It yields a detailed, interactive **Markdown Action Plan** categorized into:
+  * **Quick Wins (30 Days)**
+  * **Mid-Term Goals (90 Days)**
+  * **Long-Term Transformations**
+* Check off recommendations on this page to dynamically save carbon and see your score rise.
+
+### 5. Chat with the Sustainability Coach
+* Go to the **Assistant** tab.
+* Click one of the quick suggestions (e.g., *"How can I reduce my energy footprint?"*) or type a custom question.
+* The chatbot leverages Gemini to answer contextually based on your assessment history. If API limits are hit, it transparently falls back to a deterministic local rule-based response.
+
+### 6. Track Progress & Set Goals
+* Go to the **Progress** tab to view your performance history trends.
+* Click **Add New Goal** to set a targets (e.g. *"Reduce travel emissions by 200 kg"* by a target date).
+* Watch your rank rise on the **Leaderboard** as you check off completed recommendations.
+
+---
+
+## 🔄 How to Re-use / Reset Data
+
+* **Updating Your Profile**: To log new habits, go to **Assessment**, fill out the steps again, and click **Submit**. Your dashboard, score, action plans, and recommendations will update immediately.
+* **Logging Out / Testing New Users**: Click **Log Out** in the top-right corner. You can create a new account to test different carbon scenarios.
+* **Local Test Resets**: To start completely fresh when running locally, delete the SQLite database file in `server/data/carbon_footprint.db` (or `/tmp/carbon_footprint.db` on Cloud Run) and restart the server. The database schema will automatically migrate and re-initialize.
+
+---
+
 ## 🧪 Testing
 
 Both frontend and backend include independent, comprehensive Vitest test suites.
