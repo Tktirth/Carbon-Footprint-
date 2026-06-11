@@ -74,7 +74,7 @@ describe('API Integration Tests', () => {
     const res = await req('POST', '/api/auth/register', {
       name: 'Test User',
       email: 'test@example.com',
-      password: 'password123',
+      password: 'SecurePassword123!',
     });
 
     expect(res.status).toBe(201);
@@ -84,10 +84,10 @@ describe('API Integration Tests', () => {
 
   it('POST /api/auth/register rejects duplicate email', async () => {
     await req('POST', '/api/auth/register', {
-      name: 'First', email: 'dup@example.com', password: 'password123',
+      name: 'First', email: 'dup@example.com', password: 'SecurePassword123!',
     });
     const res = await req('POST', '/api/auth/register', {
-      name: 'Second', email: 'dup@example.com', password: 'password456',
+      name: 'Second', email: 'dup@example.com', password: 'SecurePassword456!',
     });
 
     expect(res.status).toBe(409);
@@ -105,11 +105,11 @@ describe('API Integration Tests', () => {
 
   it('POST /api/auth/login returns a token for valid credentials', async () => {
     await req('POST', '/api/auth/register', {
-      name: 'Login User', email: 'login@example.com', password: 'password123',
+      name: 'Login User', email: 'login@example.com', password: 'SecurePassword123!',
     });
 
     const res = await req('POST', '/api/auth/login', {
-      email: 'login@example.com', password: 'password123',
+      email: 'login@example.com', password: 'SecurePassword123!',
     });
 
     expect(res.status).toBe(200);
@@ -118,7 +118,7 @@ describe('API Integration Tests', () => {
 
   it('POST /api/auth/login rejects invalid password', async () => {
     await req('POST', '/api/auth/register', {
-      name: 'Bad PW', email: 'badpw@example.com', password: 'password123',
+      name: 'Bad PW', email: 'badpw@example.com', password: 'SecurePassword123!',
     });
 
     const res = await req('POST', '/api/auth/login', {
@@ -132,7 +132,7 @@ describe('API Integration Tests', () => {
 
   it('POST /api/assessments creates an assessment with emissions', async () => {
     const regRes = await req('POST', '/api/auth/register', {
-      name: 'Assess User', email: 'assess@example.com', password: 'password123',
+      name: 'Assess User', email: 'assess@example.com', password: 'SecurePassword123!',
     });
     const token = regRes.body.token;
 
@@ -172,7 +172,7 @@ describe('API Integration Tests', () => {
 
   it('GET /api/dashboard/summary returns dashboard data', async () => {
     const regRes = await req('POST', '/api/auth/register', {
-      name: 'Dash User', email: 'dash@example.com', password: 'password123',
+      name: 'Dash User', email: 'dash@example.com', password: 'SecurePassword123!',
     });
     const token = regRes.body.token;
 
@@ -206,7 +206,7 @@ describe('API Integration Tests', () => {
 
   it('POST /api/assistant/chat returns a reply', async () => {
     const regRes = await req('POST', '/api/auth/register', {
-      name: 'Chat User', email: 'chat@example.com', password: 'password123',
+      name: 'Chat User', email: 'chat@example.com', password: 'SecurePassword123!',
     });
     const token = regRes.body.token;
 
@@ -224,7 +224,7 @@ describe('API Integration Tests', () => {
 
   it('GET /api/assistant/history returns persisted messages', async () => {
     const regRes = await req('POST', '/api/auth/register', {
-      name: 'History User', email: 'history@example.com', password: 'password123',
+      name: 'History User', email: 'history@example.com', password: 'SecurePassword123!',
     });
     const token = regRes.body.token;
 
@@ -248,7 +248,7 @@ describe('API Integration Tests', () => {
 
   it('POST /api/assessments/latest/plan generates and saves an action plan', async () => {
     const regRes = await req('POST', '/api/auth/register', {
-      name: 'Plan User', email: 'plan@example.com', password: 'password123',
+      name: 'Plan User', email: 'plan@example.com', password: 'SecurePassword123!',
     });
     const token = regRes.body.token;
 
@@ -277,7 +277,7 @@ describe('API Integration Tests', () => {
 
   it('POST /api/assessments/latest/plan returns 404 with no assessment', async () => {
     const regRes = await req('POST', '/api/auth/register', {
-      name: 'NoPlan User', email: 'noplan@example.com', password: 'password123',
+      name: 'NoPlan User', email: 'noplan@example.com', password: 'SecurePassword123!',
     });
     const token = regRes.body.token;
 
@@ -289,7 +289,7 @@ describe('API Integration Tests', () => {
 
   it('GET /api/progress/leaderboard returns ranking data', async () => {
     const regRes = await req('POST', '/api/auth/register', {
-      name: 'Leader User', email: 'leader@example.com', password: 'password123',
+      name: 'Leader User', email: 'leader@example.com', password: 'SecurePassword123!',
     });
     const token = regRes.body.token;
 
