@@ -318,4 +318,93 @@ describe('API Integration Tests', () => {
     expect(lbRes.body.leaderboard[0].totalSavedKg).toBeGreaterThan(0);
     expect(lbRes.body.leaderboard[0].isCurrentUser).toBe(true);
   });
+
+  // ── Authentication Robustness Upgrades ────────────────────────────────────
+
+  it('sets the refresh token cookie with path=/ and SameSite=Lax on register/login', async () => {
+    const url = `${baseUrl}/api/auth/register`;
+    const options = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Cookie Test',
+        email: 'cookie-test@example.com',
+        password: 'SecurePassword123!',
+      }),
+    };
+    const res = await fetch(url, options);
+    const setCookie = res.headers.get('set-cookie');
+    expect(setCookie).toBeDefined();
+    expect(setCookie.toLowerCase()).toContain('path=/');
+    expect(setCookie.toLowerCase()).toContain('samesite=lax');
+  });
+
+  it('allows token refresh reuse within 30-second grace period but rejects afterwards', async () => {
+    // 1. Register a user
+    await req('POST', '/api/auth/register', {
+      name: 'Grace Test',
+      email: 'gracetest@example.com',
+      password: 'SecurePassword123!',
+    });
+    
+    // To get the actual cookie value from set-cookie
+    const registerUrl = `${baseUrl}/api/auth/login`;
+    const registerOptions = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'gracetest@example.com',
+        password: 'SecurePassword123!',
+      }),
+    };
+    const loginRes = await fetch(registerUrl, registerOptions);
+    const setCookieHeader = loginRes.headers.get('set-cookie');
+    // Extract jid cookie value
+    const match = setCookieHeader.match(/jid=([^;]+)/);
+    const jidCookieValue = match ? match[1] : null;
+    expect(jidCookieValue).toBeDefined();
+
+    // 2. Perform first refresh
+    const refreshUrl = `${baseUrl}/api/auth/refresh`;
+    const refreshRes1 = await fetch(refreshUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': `jid=${jidCookieValue}`
+      }
+    });
+    expect(refreshRes1.status).toBe(200);
+    const body1 = await refreshRes1.json();
+    expect(body1.token).toBeDefined();
+
+    // 3. Perform second refresh with the SAME old token (simulating concurrent race condition)
+    // This should succeed because it falls within the 30-second grace period.
+    const refreshRes2 = await fetch(refreshUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': `jid=${jidCookieValue}`
+      }
+    });
+    expect(refreshRes2.status).toBe(200);
+    const body2 = await refreshRes2.json();
+    expect(body2.token).toBeDefined();
+
+    // 4. Manually mock or simulate expired/revoked token reuse outside grace period
+    // Since we want to test outside 30 seconds without sleeping, we manipulate the database record's revoked_at timestamp
+    const { run } = require('../src/models/db');
+    // Set revoked_at to 1 minute ago
+    const oneMinuteAgo = new Date(Date.now() - 60000).toISOString();
+    await run('UPDATE refresh_tokens SET revoked_at = ? WHERE token = ?', [oneMinuteAgo, jidCookieValue]);
+
+    // Now attempt a third refresh with the same token - should be rejected as a security breach!
+    const refreshRes3 = await fetch(refreshUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': `jid=${jidCookieValue}`
+      }
+    });
+    expect(refreshRes3.status).toBe(401);
+  });
 });
