@@ -186,7 +186,7 @@ router.post('/login', authLimiter, loginValidation, async (req, res, next) => {
 
 // ─── POST /verify ───────────────────────────────────────────────────────────
 
-router.post('/verify', async (req, res, next) => {
+router.post('/verify', authLimiter, async (req, res, next) => {
   try {
     const { email, code } = req.body;
 
@@ -199,8 +199,10 @@ router.post('/verify', async (req, res, next) => {
       [email]
     );
 
+    // Return the same generic message whether the user exists or not
+    // to prevent email enumeration attacks.
     if (!user) {
-      return res.status(404).json({ error: 'User not found.' });
+      return res.status(400).json({ error: 'Invalid email or verification code.' });
     }
 
     const isVerified = db.isPostgres ? !!user.is_verified : user.is_verified === 1;
@@ -209,7 +211,7 @@ router.post('/verify', async (req, res, next) => {
     }
 
     if (user.verification_code !== code.trim()) {
-      return res.status(400).json({ error: 'Invalid verification code. Please try again.' });
+      return res.status(400).json({ error: 'Invalid email or verification code.' });
     }
 
     // Mark user as verified
@@ -227,7 +229,7 @@ router.post('/verify', async (req, res, next) => {
 
 // ─── POST /refresh ──────────────────────────────────────────────────────────
 
-router.post('/refresh', async (req, res, next) => {
+router.post('/refresh', authLimiter, async (req, res, next) => {
   try {
     const token = req.cookies.jid;
     if (!token) {
