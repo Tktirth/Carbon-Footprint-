@@ -1,9 +1,20 @@
 'use strict';
 
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 
-const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET || 'dev-access-secret-key-change-in-production';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'dev-refresh-secret-key-change-in-production';
+/**
+ * Derive a child secret from a master key using HMAC-SHA256.
+ * Ensures access and refresh secrets are always cryptographically distinct
+ * even when only a single JWT_SECRET env var is provided.
+ */
+function deriveSecret(master, label) {
+  return crypto.createHmac('sha256', master).update(label).digest('hex');
+}
+
+const MASTER_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-production';
+const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || deriveSecret(MASTER_SECRET, 'access');
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || deriveSecret(MASTER_SECRET, 'refresh');
 
 /**
  * Express middleware that verifies a JWT Bearer token from the Authorization
@@ -110,22 +121,8 @@ function clearRefreshTokenCookie(res) {
   });
 }
 
-/**
- * Sign a JWT for the given user payload (backward compatible wrapper).
- * @param {{ id: number, email: string, name: string }} user
- * @returns {string} signed JWT (expires in 24h)
- */
-function signToken(user) {
-  return jwt.sign(
-    { id: user.id, email: user.email, name: user.name },
-    JWT_ACCESS_SECRET,
-    { expiresIn: '24h' }
-  );
-}
-
 module.exports = {
   authenticateToken,
-  signToken,
   signAccessToken,
   signRefreshToken,
   verifyRefreshToken,

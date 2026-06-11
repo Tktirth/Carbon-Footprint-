@@ -33,8 +33,12 @@ const assistantRoutes = require('./src/routes/assistant');
 function createApp() {
   // Enforce strong secret configuration in production
   if (process.env.NODE_ENV === 'production') {
-    if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'dev-secret-key-change-in-production') {
-      throw new Error('FATAL: A secure JWT_SECRET environment variable must be set in production mode!');
+    const masterSecret = process.env.JWT_SECRET;
+    if (!masterSecret || masterSecret === 'dev-secret-key-change-in-production') {
+      throw new Error(
+        'FATAL: A secure JWT_SECRET environment variable must be set in production mode! ' +
+        'Optionally also set JWT_ACCESS_SECRET and JWT_REFRESH_SECRET for explicit control.'
+      );
     }
   }
 
