@@ -54,6 +54,10 @@ async function migrateSchema() {
     const typeDef = isPostgres ? 'BOOLEAN NOT NULL DEFAULT FALSE' : 'INTEGER NOT NULL DEFAULT 0';
     await run(`ALTER TABLE refresh_tokens ADD COLUMN is_revoked ${typeDef}`);
   } catch (_) {}
+  try {
+    const typeDef = isPostgres ? 'TIMESTAMP' : 'TEXT';
+    await run(`ALTER TABLE refresh_tokens ADD COLUMN revoked_at ${typeDef}`);
+  } catch (_) {}
 }
 
 /**

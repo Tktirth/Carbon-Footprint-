@@ -132,6 +132,7 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   ip_address VARCHAR(45),
   user_agent TEXT,
   is_revoked BOOLEAN NOT NULL DEFAULT FALSE,
+  revoked_at TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   ip_address TEXT,
   user_agent TEXT,
   is_revoked INTEGER NOT NULL DEFAULT 0,
+  revoked_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
