@@ -104,7 +104,8 @@ function setRefreshTokenCookie(res, token) {
   res.cookie('jid', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: 'lax',
+    path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days in milliseconds
   });
 }
@@ -117,7 +118,8 @@ function clearRefreshTokenCookie(res) {
   res.clearCookie('jid', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict'
+    sameSite: 'lax',
+    path: '/'
   });
 }
 
