@@ -142,7 +142,7 @@ export default function VerifyEmail() {
           </form>
 
           <div className="mt-8 pt-6 border-t border-white/5 flex flex-col gap-3 items-center">
-            <p className="text-xs text-gray-500 text-center">
+            <p className="text-xs text-gray-400 text-center">
               Didn't receive the email? Check your spam folder or console logs (in local mode).
             </p>
             <button

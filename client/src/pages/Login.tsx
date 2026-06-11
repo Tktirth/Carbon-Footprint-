@@ -254,7 +254,7 @@ export default function Login() {
           </div>
         </div>
 
-        <p className="text-center text-xs text-gray-600 mt-6">
+        <p className="text-center text-xs text-gray-400 mt-6">
           By signing in, you agree to track and reduce your carbon footprint 🌍
         </p>
       </div>
