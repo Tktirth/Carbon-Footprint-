@@ -10,7 +10,7 @@ Only the latest version of EcoTrack is supported with security updates.
 
 ## Reporting a Vulnerability
 
-We take the security of EcoTrack seriously. If you find a security vulnerability, please do not disclose it publicly. Instead, report it through the following process:
+I take the security of EcoTrack seriously. If you find a security vulnerability, please do not disclose it publicly. Instead, report it through the following process:
 
 1. **Email Reports**: Send a detailed description of the vulnerability to the project maintainers.
 2. **Details to Include**:
@@ -18,4 +18,4 @@ We take the security of EcoTrack seriously. If you find a security vulnerability
    - The potential impact (e.g., privilege escalation, unauthorized data access, denial of service).
    - Any proposed remediation or mitigation steps.
 
-We will acknowledge your report within 48 hours and work with you to analyze and patch the issue in a timely manner.
+I will acknowledge your report within 48 hours and work with you to analyze and patch the issue in a timely manner.
