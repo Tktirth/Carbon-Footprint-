@@ -8,15 +8,14 @@ const { run, get } = db;
 const {
   signAccessToken,
   signRefreshToken,
+  verifyRefreshToken,
   setRefreshTokenCookie,
   clearRefreshTokenCookie,
   authenticateToken
 } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimiter');
 const { sendVerificationEmail } = require('../services/mailService');
-const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-production';
 const router = express.Router();
 
 // ─── Validation helpers ─────────────────────────────────────────────────────
@@ -213,7 +212,7 @@ router.post('/refresh', async (req, res, next) => {
     // Verify Refresh Token signature
     let decoded;
     try {
-      decoded = jwt.verify(token, JWT_SECRET);
+      decoded = verifyRefreshToken(token);
     } catch (err) {
       clearRefreshTokenCookie(res);
       return res.status(401).json({ error: 'Refresh token expired or invalid.' });

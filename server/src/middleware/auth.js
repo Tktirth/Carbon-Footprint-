@@ -2,7 +2,8 @@
 
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-production';
+const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET || 'dev-access-secret-key-change-in-production';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'dev-refresh-secret-key-change-in-production';
 
 /**
  * Express middleware that verifies a JWT Bearer token from the Authorization
@@ -29,7 +30,7 @@ function authenticateToken(req, res, next) {
   const token = parts[1];
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_ACCESS_SECRET);
     req.user = { id: decoded.id, email: decoded.email, name: decoded.name };
     next();
   } catch (err) {
@@ -51,7 +52,7 @@ function authenticateToken(req, res, next) {
 function signAccessToken(user) {
   return jwt.sign(
     { id: user.id, email: user.email, name: user.name },
-    JWT_SECRET,
+    JWT_ACCESS_SECRET,
     { expiresIn: '15m' }
   );
 }
@@ -69,9 +70,18 @@ function signRefreshToken(user) {
       name: user.name,
       jti: Math.random().toString(36).substring(2, 15) + Date.now()
     },
-    JWT_SECRET,
+    JWT_REFRESH_SECRET,
     { expiresIn: '7d' }
   );
+}
+
+/**
+ * Verify a refresh token and return its decoded payload.
+ * @param {string} token
+ * @returns {object} decoded payload
+ */
+function verifyRefreshToken(token) {
+  return jwt.verify(token, JWT_REFRESH_SECRET);
 }
 
 /**
@@ -108,7 +118,7 @@ function clearRefreshTokenCookie(res) {
 function signToken(user) {
   return jwt.sign(
     { id: user.id, email: user.email, name: user.name },
-    JWT_SECRET,
+    JWT_ACCESS_SECRET,
     { expiresIn: '24h' }
   );
 }
@@ -118,6 +128,7 @@ module.exports = {
   signToken,
   signAccessToken,
   signRefreshToken,
+  verifyRefreshToken,
   setRefreshTokenCookie,
   clearRefreshTokenCookie
 };
