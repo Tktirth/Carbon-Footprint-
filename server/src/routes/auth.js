@@ -265,13 +265,19 @@ router.post('/refresh', authLimiter, async (req, res, next) => {
     }
 
     // 2. CLIENT FINGERPRINT VALIDATION
+    // User-Agent is stable for the same device/browser; IP can change legitimately
+    // (mobile networks, VPNs, rotating proxies). Enforce UA strictly, log IP changes.
     const { ip, ua } = getClientFingerprint(req);
-    if (dbToken.ip_address !== ip || dbToken.user_agent !== ua) {
-      // Potential session hijacking! Revoke this specific token.
+    if (dbToken.user_agent !== ua) {
+      // Different browser/device — likely session hijacking. Revoke this token.
       await run('DELETE FROM refresh_tokens WHERE id = ?', [dbToken.id]);
       clearRefreshTokenCookie(res);
-      console.warn(`🚨 Security Alert: Fingerprint mismatch for user ${dbToken.user_id}. Expected IP: ${dbToken.ip_address}, UA: ${dbToken.user_agent}. Got IP: ${ip}, UA: ${ua}.`);
+      console.warn(`🚨 Security Alert: User-Agent mismatch for user ${dbToken.user_id}. Expected: ${dbToken.user_agent}. Got: ${ua}.`);
       return res.status(401).json({ error: 'Session verification failed. Please log in again.' });
+    }
+    if (dbToken.ip_address !== ip) {
+      // IP changed but same UA — log for forensics, allow the request
+      console.info(`ℹ️  IP change for user ${dbToken.user_id}: ${dbToken.ip_address} → ${ip} (UA unchanged, allowing).`);
     }
 
     // Verify DB Expiry
