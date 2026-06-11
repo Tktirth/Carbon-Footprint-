@@ -260,3 +260,6 @@ gcloud run deploy ecotrack \
 * **Connection Pooling**: Restricts pool size (`max: 5`) to prevent serverless scaling from exhausting Supabase connection limits.
 * **Production Secret Checks**: Server halts immediately on startup in production if `JWT_SECRET` is missing or matches default development keys.
 * **Rate Limiting**: Integrated `express-rate-limit` prevents brute-force abuse of AI and auth routes.
+* **SQLite Fallback Persistence (Volume Mounts)**: When the server falls back to SQLite, it writes the database to `/tmp/carbon_footprint.db` to survive serverless read-only restrictions. To make the database survive container lifecycles in production, you can configure Google Cloud Run to mount a persistent Cloud Storage bucket or dynamic NFS share (Filestore) to `/tmp` via **Cloud Run Volume Mounts**.
+* **Experimental Warning Suppression**: Built-in SQLite database uses Node's native `node:sqlite` module. Start scripts utilize the `--no-warnings` flag to ensure the console output remains clean of experimental feature notices.
+* **Reduced Motion Accessibility**: Fully respects visual accessibility standards. When a user has `prefers-reduced-motion` enabled in their OS, all css hover transforms, loaders, and page transitions are automatically disabled.
