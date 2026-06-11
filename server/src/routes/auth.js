@@ -14,7 +14,6 @@ const {
   authenticateToken
 } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimiter');
-const { sendVerificationEmail } = require('../services/mailService');
 
 const router = express.Router();
 
