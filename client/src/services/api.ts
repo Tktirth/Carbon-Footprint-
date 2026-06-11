@@ -38,6 +38,7 @@ async function performTokenRefresh(): Promise<string | null> {
     const res = await fetch(`${BASE_URL}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
     });
     if (!res.ok) throw new Error('Refresh failed');
     const data = await res.json();
@@ -67,6 +68,7 @@ async function request<T>(
   let response = await fetch(`${BASE_URL}${endpoint}`, {
     ...options,
     headers,
+    credentials: 'include',
   });
 
   // If unauthorized and not an authentication endpoint, try to refresh the token and retry the request
