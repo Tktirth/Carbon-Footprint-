@@ -98,8 +98,8 @@ async function request<T>(
     removeToken();
     if (!isAuth) {
       window.location.href = '/login';
+      throw new Error('Unauthorized');
     }
-    throw new Error('Unauthorized');
   }
 
   if (!response.ok) {
