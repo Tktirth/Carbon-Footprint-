@@ -102,7 +102,7 @@ router.post('/register', authLimiter, registerValidation, async (req, res, next)
     }
 
     // Hash password (cost factor 12)
-    const passwordHash = bcrypt.hashSync(password, 12);
+    const passwordHash = await bcrypt.hash(password, 12);
 
     const verifiedVal = db.isPostgres ? true : 1;
     const result = await run(
@@ -152,7 +152,7 @@ router.post('/login', authLimiter, loginValidation, async (req, res, next) => {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
-    const valid = bcrypt.compareSync(password, user.password_hash);
+    const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
