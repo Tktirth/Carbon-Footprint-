@@ -79,13 +79,11 @@ router.post('/register', authLimiter, registerValidation, async (req, res, next)
     // Hash password (cost factor 12)
     const passwordHash = bcrypt.hashSync(password, 12);
 
-    // Generate 6-digit email verification code
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-
+    const verifiedVal = db.isPostgres ? true : 1;
     const result = await run(
       `INSERT INTO users (name, email, password_hash, is_verified, verification_code)
-       VALUES (?, ?, ?, 0, ?)`,
-      [name, email, passwordHash, verificationCode]
+       VALUES (?, ?, ?, ?, NULL)`,
+      [name, email, passwordHash, verifiedVal]
     );
 
     const userId = result.lastInsertRowid;
@@ -99,17 +97,10 @@ router.post('/register', authLimiter, registerValidation, async (req, res, next)
     await saveRefreshToken(userId, refreshToken);
     setRefreshTokenCookie(res, refreshToken);
 
-    // Fire email trigger asynchronously
-    sendVerificationEmail(email, name, verificationCode).catch((err) => {
-      console.error('❌ Background email trigger failed:', err);
-    });
-
     return res.status(201).json({
-      message: 'Account created successfully. Please verify your email.',
+      message: 'Account created successfully.',
       token: accessToken,
-      user: { id: userId, name, email, isVerified: false },
-      // Return code in mock mode/development response to facilitate easy testing by judges
-      mockVerificationCode: process.env.NODE_ENV !== 'production' ? verificationCode : undefined
+      user: { id: userId, name, email, isVerified: true }
     });
   } catch (err) {
     next(err);
