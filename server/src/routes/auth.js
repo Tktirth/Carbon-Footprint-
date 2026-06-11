@@ -246,7 +246,7 @@ router.post('/refresh', authLimiter, async (req, res, next) => {
 
     // Find token in DB (including revoked ones)
     const dbToken = await get(
-      'SELECT id, user_id, expires_at, ip_address, user_agent, is_revoked FROM refresh_tokens WHERE token = ?',
+      'SELECT id, user_id, expires_at, ip_address, user_agent, is_revoked, revoked_at FROM refresh_tokens WHERE token = ?',
       [token]
     );
     if (!dbToken) {
@@ -257,11 +257,27 @@ router.post('/refresh', authLimiter, async (req, res, next) => {
     // 1. REPLAY / REUSE ATTACK DETECTION
     const isRevoked = db.isPostgres ? dbToken.is_revoked : dbToken.is_revoked === 1;
     if (isRevoked) {
-      // Security Breach! Revoke all tokens for this user immediately.
-      await run('DELETE FROM refresh_tokens WHERE user_id = ?', [dbToken.user_id]);
-      clearRefreshTokenCookie(res);
-      console.warn(`🚨 Security Breach: Revoked refresh token reuse detected for user ${dbToken.user_id}. All active sessions invalidated.`);
-      return res.status(401).json({ error: 'Security breach detected. All active sessions invalidated. Please log in again.' });
+      if (dbToken.revoked_at) {
+        const revokedAt = new Date(dbToken.revoked_at);
+        const timeSinceRevocation = Date.now() - revokedAt.getTime();
+        const GRACE_PERIOD_MS = 30 * 1000; // 30 seconds grace period
+        
+        if (timeSinceRevocation <= GRACE_PERIOD_MS) {
+          console.info(`ℹ️  Refresh token reused within grace period (${Math.round(timeSinceRevocation)}ms) for user ${dbToken.user_id}. Allowing request.`);
+        } else {
+          // Security Breach! Revoke all tokens for this user immediately.
+          await run('DELETE FROM refresh_tokens WHERE user_id = ?', [dbToken.user_id]);
+          clearRefreshTokenCookie(res);
+          console.warn(`🚨 Security Breach: Revoked refresh token reuse detected for user ${dbToken.user_id} after grace period. All active sessions invalidated.`);
+          return res.status(401).json({ error: 'Security breach detected. All active sessions invalidated. Please log in again.' });
+        }
+      } else {
+        // Fallback for older tokens without timestamp
+        await run('DELETE FROM refresh_tokens WHERE user_id = ?', [dbToken.user_id]);
+        clearRefreshTokenCookie(res);
+        console.warn(`🚨 Security Breach: Revoked refresh token reuse detected for user ${dbToken.user_id} (no timestamp). All active sessions invalidated.`);
+        return res.status(401).json({ error: 'Security breach detected. All active sessions invalidated. Please log in again.' });
+      }
     }
 
     // 2. CLIENT FINGERPRINT VALIDATION
@@ -306,7 +322,8 @@ router.post('/refresh', authLimiter, async (req, res, next) => {
 
     // Mark old token as revoked instead of deleting (allows reuse detection for its expiry duration)
     const revokedVal = db.isPostgres ? true : 1;
-    await run('UPDATE refresh_tokens SET is_revoked = ? WHERE id = ?', [revokedVal, dbToken.id]);
+    const nowVal = db.isPostgres ? new Date() : new Date().toISOString();
+    await run('UPDATE refresh_tokens SET is_revoked = ?, revoked_at = ? WHERE id = ?', [revokedVal, nowVal, dbToken.id]);
 
     // Save new token to DB & Set Cookie
     await saveRefreshToken(user.id, newRefreshToken, ip, ua);
