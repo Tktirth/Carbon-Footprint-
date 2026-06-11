@@ -4,7 +4,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
 const db = require('../models/db');
-const { run, get } = db;
+const { run, get, all } = db;
 const {
   signAccessToken,
   signRefreshToken,
@@ -49,16 +49,39 @@ const loginValidation = [
     .notEmpty().withMessage('Password is required.'),
 ];
 
-// ─── Helper: Save Refresh Token ──────────────────────────────────────────────
+// ─── Helpers: Fingerprinting & Session Control ──────────────────────────────
 
-async function saveRefreshToken(userId, token) {
+function getClientFingerprint(req) {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+  const ua = req.headers['user-agent'] || 'unknown';
+  return { ip, ua };
+}
+
+async function saveRefreshToken(userId, token, ip, ua) {
+  // 1. Garbage Collection: Sweep expired tokens
+  const nowVal = db.isPostgres ? new Date() : new Date().toISOString();
+  await run('DELETE FROM refresh_tokens WHERE expires_at < ?', [nowVal]);
+
+  // 2. Session Limit: Enforce maximum of 5 concurrent active sessions
+  const sessions = await all(
+    'SELECT id FROM refresh_tokens WHERE user_id = ? AND is_revoked = 0 ORDER BY created_at ASC',
+    [userId]
+  );
+  if (sessions.length >= 5) {
+    const toDeleteCount = sessions.length - 4; // leave room for this new session (total 5)
+    for (let i = 0; i < toDeleteCount; i++) {
+      await run('DELETE FROM refresh_tokens WHERE id = ?', [sessions[i].id]);
+    }
+  }
+
+  // 3. Save new token
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
   const expiresVal = db.isPostgres ? expiresAt : expiresAt.toISOString();
 
   await run(
-    'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
-    [userId, token, expiresVal]
+    'INSERT INTO refresh_tokens (user_id, token, expires_at, ip_address, user_agent, is_revoked) VALUES (?, ?, ?, ?, ?, 0)',
+    [userId, token, expiresVal, ip, ua]
   );
 }
 
@@ -97,7 +120,8 @@ router.post('/register', authLimiter, registerValidation, async (req, res, next)
     const refreshToken = signRefreshToken(userPayload);
 
     // Save refresh token to DB & Set Cookie
-    await saveRefreshToken(userId, refreshToken);
+    const { ip, ua } = getClientFingerprint(req);
+    await saveRefreshToken(userId, refreshToken, ip, ua);
     setRefreshTokenCookie(res, refreshToken);
 
     return res.status(201).json({
@@ -144,7 +168,8 @@ router.post('/login', authLimiter, loginValidation, async (req, res, next) => {
     const refreshToken = signRefreshToken(userPayload);
 
     // Save refresh token to DB & Set Cookie
-    await saveRefreshToken(user.id, refreshToken);
+    const { ip, ua } = getClientFingerprint(req);
+    await saveRefreshToken(user.id, refreshToken, ip, ua);
     setRefreshTokenCookie(res, refreshToken);
 
     const isVerified = db.isPostgres ? !!user.is_verified : user.is_verified === 1;
@@ -218,14 +243,34 @@ router.post('/refresh', async (req, res, next) => {
       return res.status(401).json({ error: 'Refresh token expired or invalid.' });
     }
 
-    // Find active token in DB
+    // Find token in DB (including revoked ones)
     const dbToken = await get(
-      'SELECT id, user_id, expires_at FROM refresh_tokens WHERE token = ?',
+      'SELECT id, user_id, expires_at, ip_address, user_agent, is_revoked FROM refresh_tokens WHERE token = ?',
       [token]
     );
     if (!dbToken) {
       clearRefreshTokenCookie(res);
       return res.status(401).json({ error: 'Refresh token revoked or inactive.' });
+    }
+
+    // 1. REPLAY / REUSE ATTACK DETECTION
+    const isRevoked = db.isPostgres ? dbToken.is_revoked : dbToken.is_revoked === 1;
+    if (isRevoked) {
+      // Security Breach! Revoke all tokens for this user immediately.
+      await run('DELETE FROM refresh_tokens WHERE user_id = ?', [dbToken.user_id]);
+      clearRefreshTokenCookie(res);
+      console.warn(`🚨 Security Breach: Revoked refresh token reuse detected for user ${dbToken.user_id}. All active sessions invalidated.`);
+      return res.status(401).json({ error: 'Security breach detected. All active sessions invalidated. Please log in again.' });
+    }
+
+    // 2. CLIENT FINGERPRINT VALIDATION
+    const { ip, ua } = getClientFingerprint(req);
+    if (dbToken.ip_address !== ip || dbToken.user_agent !== ua) {
+      // Potential session hijacking! Revoke this specific token.
+      await run('DELETE FROM refresh_tokens WHERE id = ?', [dbToken.id]);
+      clearRefreshTokenCookie(res);
+      console.warn(`🚨 Security Alert: Fingerprint mismatch for user ${dbToken.user_id}. Expected IP: ${dbToken.ip_address}, UA: ${dbToken.user_agent}. Got IP: ${ip}, UA: ${ua}.`);
+      return res.status(401).json({ error: 'Session verification failed. Please log in again.' });
     }
 
     // Verify DB Expiry
@@ -252,9 +297,12 @@ router.post('/refresh', async (req, res, next) => {
     const newAccessToken = signAccessToken(userPayload);
     const newRefreshToken = signRefreshToken(userPayload);
 
-    // Delete old token & save new token
-    await run('DELETE FROM refresh_tokens WHERE id = ?', [dbToken.id]);
-    await saveRefreshToken(user.id, newRefreshToken);
+    // Mark old token as revoked instead of deleting (allows reuse detection for its expiry duration)
+    const revokedVal = db.isPostgres ? true : 1;
+    await run('UPDATE refresh_tokens SET is_revoked = ? WHERE id = ?', [revokedVal, dbToken.id]);
+
+    // Save new token to DB & Set Cookie
+    await saveRefreshToken(user.id, newRefreshToken, ip, ua);
     setRefreshTokenCookie(res, newRefreshToken);
 
     return res.json({
