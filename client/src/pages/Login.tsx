@@ -1,4 +1,4 @@
-import React, { useState, type FormEvent } from 'react';
+import React, { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/ui/Button';
@@ -11,8 +11,31 @@ export default function Login() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { login, register } = useAuth();
+  const { login, register, isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect to home if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && !authLoading) {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, authLoading, navigate]);
+
+  const handleToggleMode = () => {
+    setIsRegister(!isRegister);
+    setName('');
+    setEmail('');
+    setPassword('');
+    setError('');
+  };
+
+  // Real-time password requirement evaluations
+  const hasMinLength = password.length >= 8;
+  const hasMaxLength = password.length <= 72;
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasLowercase = /[a-z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecial = /[^A-Za-z0-9]/.test(password);
 
   const validateForm = (): boolean => {
     if (isRegister && !name.trim()) {
@@ -30,6 +53,28 @@ export default function Login() {
     if (password.length < 8) {
       setError('Password must be at least 8 characters');
       return false;
+    }
+    if (isRegister) {
+      if (password.length > 72) {
+        setError('Password must be at most 72 characters');
+        return false;
+      }
+      if (!hasUppercase) {
+        setError('Password must contain at least one uppercase letter');
+        return false;
+      }
+      if (!hasLowercase) {
+        setError('Password must contain at least one lowercase letter');
+        return false;
+      }
+      if (!hasNumber) {
+        setError('Password must contain at least one number');
+        return false;
+      }
+      if (!hasSpecial) {
+        setError('Password must contain at least one special character (e.g. !, @, #, etc.)');
+        return false;
+      }
     }
     return true;
   };
@@ -163,6 +208,29 @@ export default function Login() {
               </div>
             </div>
 
+            {isRegister && password && (
+              <div className="text-xs space-y-1.5 p-3 rounded-xl bg-white/5 border border-white/10 animate-fade-in">
+                <p className="font-semibold text-gray-400">Password requirements:</p>
+                <ul className="grid grid-cols-2 gap-x-2 gap-y-1 text-gray-400">
+                  <li className={`flex items-center gap-1.5 ${hasMinLength && hasMaxLength ? 'text-emerald-400 font-medium' : ''}`}>
+                    <span>{hasMinLength && hasMaxLength ? '✓' : '•'}</span> 8–72 characters
+                  </li>
+                  <li className={`flex items-center gap-1.5 ${hasUppercase ? 'text-emerald-400 font-medium' : ''}`}>
+                    <span>{hasUppercase ? '✓' : '•'}</span> Uppercase letter
+                  </li>
+                  <li className={`flex items-center gap-1.5 ${hasLowercase ? 'text-emerald-400 font-medium' : ''}`}>
+                    <span>{hasLowercase ? '✓' : '•'}</span> Lowercase letter
+                  </li>
+                  <li className={`flex items-center gap-1.5 ${hasNumber ? 'text-emerald-400 font-medium' : ''}`}>
+                    <span>{hasNumber ? '✓' : '•'}</span> One number
+                  </li>
+                  <li className={`flex items-center gap-1.5 ${hasSpecial ? 'text-emerald-400 font-medium' : ''}`}>
+                    <span>{hasSpecial ? '✓' : '•'}</span> Special character
+                  </li>
+                </ul>
+              </div>
+            )}
+
             <Button
               type="submit"
               fullWidth
@@ -176,10 +244,7 @@ export default function Login() {
           <div className="mt-6 text-center">
             <button
               type="button"
-              onClick={() => {
-                setIsRegister(!isRegister);
-                setError('');
-              }}
+              onClick={handleToggleMode}
               className="text-sm text-gray-400 hover:text-emerald-400 transition-colors"
             >
               {isRegister
