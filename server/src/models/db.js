@@ -43,6 +43,19 @@ if (isPostgres) {
   ensureSqliteDir();
 }
 
+async function migrateSchema() {
+  try {
+    await run('ALTER TABLE refresh_tokens ADD COLUMN ip_address VARCHAR(45)');
+  } catch (_) {}
+  try {
+    await run('ALTER TABLE refresh_tokens ADD COLUMN user_agent TEXT');
+  } catch (_) {}
+  try {
+    const typeDef = isPostgres ? 'BOOLEAN NOT NULL DEFAULT FALSE' : 'INTEGER NOT NULL DEFAULT 0';
+    await run(`ALTER TABLE refresh_tokens ADD COLUMN is_revoked ${typeDef}`);
+  } catch (_) {}
+}
+
 /**
  * Initialise database tables.
  * Made asynchronous to support PostgreSQL remote setup.
@@ -58,12 +71,13 @@ async function initDb(dbPath) {
       const schemaPath = path.resolve(__dirname, '..', '..', 'database', 'postgres_schema.sql');
       const schema = fs.readFileSync(schemaPath, 'utf-8');
       await client.query(schema);
+      await migrateSchema();
       console.log('⚡ Supabase PostgreSQL Database Initialised successfully.');
     } catch (err) {
       console.error('⚠️ Failed to connect to Postgres/Supabase. Falling back to SQLite:', err.message);
       isPostgres = false;
       ensureSqliteDir();
-      initSqlite(dbPath);
+      await initSqlite(dbPath);
     } finally {
       if (client) {
         // Release advisory lock and return client back to pool
@@ -72,11 +86,11 @@ async function initDb(dbPath) {
       }
     }
   } else {
-    initSqlite(dbPath);
+    await initSqlite(dbPath);
   }
 }
 
-function initSqlite(dbPath) {
+async function initSqlite(dbPath) {
   const filePath = dbPath || DB_FILE;
   if (db) {
     try { db.close(); } catch (_) {}
@@ -88,6 +102,7 @@ function initSqlite(dbPath) {
   const schemaPath = path.resolve(__dirname, '..', '..', 'database', 'schema.sql');
   const schema = fs.readFileSync(schemaPath, 'utf-8');
   db.exec(schema);
+  await migrateSchema();
   console.log('⚡ SQLite Database Initialised successfully.');
 }
 
