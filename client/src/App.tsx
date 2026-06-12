@@ -9,6 +9,8 @@ import Progress from './pages/Progress';
 import Assistant from './pages/Assistant';
 import Login from './pages/Login';
 import VerifyEmail from './pages/VerifyEmail';
+import Home from './pages/Home';
+import About from './pages/About';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -36,6 +38,11 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
   return <>{children}</>;
 }
 
+function WildcardRedirect() {
+  const { isAuthenticated } = useAuth();
+  return <Navigate to={isAuthenticated ? "/dashboard" : "/"} replace />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -44,8 +51,10 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/" element={<Home />} />
+            <Route path="/about" element={<About />} />
             <Route
-              path="/"
+              path="/dashboard"
               element={
                 <ProtectedRoute>
                   <Dashboard />
@@ -84,7 +93,7 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<WildcardRedirect />} />
           </Routes>
         </AppProvider>
       </AuthProvider>

@@ -2,18 +2,24 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
-const navLinks = [
-  { to: '/', label: 'Dashboard', icon: '📊' },
-  { to: '/assessment', label: 'Assessment', icon: '📝' },
-  { to: '/insights', label: 'Insights', icon: '💡' },
-  { to: '/progress', label: 'Progress', icon: '📈' },
-  { to: '/assistant', label: 'Assistant', icon: '🤖' },
-];
-
 export default function Header() {
-  const { user, logout } = useAuth();
+  const { user, logout, isAuthenticated } = useAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const links = isAuthenticated
+    ? [
+        { to: '/dashboard', label: 'Dashboard', icon: '📊' },
+        { to: '/assessment', label: 'Assessment', icon: '📝' },
+        { to: '/insights', label: 'Insights', icon: '💡' },
+        { to: '/progress', label: 'Progress', icon: '📈' },
+        { to: '/assistant', label: 'Assistant', icon: '🤖' },
+        { to: '/about', label: 'About', icon: '🔬' },
+      ]
+    : [
+        { to: '/', label: 'Home', icon: '🏠' },
+        { to: '/about', label: 'About', icon: '🔬' },
+      ];
 
   return (
     <header className="sticky top-0 z-50 backdrop-blur-xl bg-dark-900/80 border-b border-white/5">
@@ -21,7 +27,7 @@ export default function Header() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link
-            to="/"
+            to={isAuthenticated ? "/dashboard" : "/"}
             className="flex items-center gap-2 group"
             aria-label="EcoTrack Home"
           >
@@ -33,7 +39,7 @@ export default function Header() {
 
           {/* Desktop navigation */}
           <div className="hidden md:flex items-center gap-1">
-            {navLinks.map((link) => {
+            {links.map((link) => {
               const isActive = location.pathname === link.to;
               return (
                 <Link
@@ -56,7 +62,7 @@ export default function Header() {
 
           {/* User menu */}
           <div className="hidden md:flex items-center gap-4">
-            {user && (
+            {user ? (
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-sm font-bold text-white shadow-lg shadow-emerald-500/20">
                   {user.name.charAt(0).toUpperCase()}
@@ -72,6 +78,12 @@ export default function Header() {
                   Sign out
                 </button>
               </div>
+            ) : (
+              <Link to="/login">
+                <button className="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 text-gray-400 hover:text-white hover:bg-white/5 border border-white/10 hover:border-white/20">
+                  Sign In
+                </button>
+              </Link>
             )}
           </div>
 
@@ -102,7 +114,7 @@ export default function Header() {
             className="md:hidden pb-4 animate-slide-down"
           >
             <div className="space-y-1 pt-2">
-              {navLinks.map((link) => {
+              {links.map((link) => {
                 const isActive = location.pathname === link.to;
                 return (
                   <Link
@@ -123,7 +135,7 @@ export default function Header() {
                 );
               })}
             </div>
-            {user && (
+            {user ? (
               <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between px-4">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-sm font-bold text-white">
@@ -138,6 +150,16 @@ export default function Header() {
                 >
                   Sign out
                 </button>
+              </div>
+            ) : (
+              <div className="mt-4 pt-4 border-t border-white/5 px-4">
+                <Link
+                  to="/login"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="block text-center w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
+                >
+                  Sign In
+                </Link>
               </div>
             )}
           </div>
