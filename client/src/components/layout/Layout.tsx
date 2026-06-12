@@ -14,7 +14,7 @@ export default function Layout({ children }: LayoutProps) {
       </main>
       <footer className="border-t border-white/5 py-6 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-400">
             <span aria-hidden="true">🌍</span> EcoTrack — Helping you reduce your carbon footprint, one step at a time.
           </p>
         </div>
