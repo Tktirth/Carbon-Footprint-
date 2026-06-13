@@ -1,5 +1,7 @@
 'use strict';
 
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
 // ─── Knowledge Base ─────────────────────────────────────────────────────────
 // ~30 Q&A pairs covering common sustainability topics.  Keywords are lowercased
 // for matching.
@@ -179,7 +181,6 @@ const FAREWELL_PATTERNS = ['bye', 'goodbye', 'see you', 'later'];
 async function processMessage(message, userData, history) {
   if (process.env.GEMINI_API_KEY) {
     try {
-      const { GoogleGenerativeAI } = require('@google/generative-ai');
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 

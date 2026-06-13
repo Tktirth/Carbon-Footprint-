@@ -1,4 +1,3 @@
-import React from 'react';
 import type { AssessmentFormData } from '../../types';
 
 interface FoodFormProps {

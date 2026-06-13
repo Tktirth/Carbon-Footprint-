@@ -2,6 +2,7 @@
 
 const express = require('express');
 const { body, query, validationResult } = require('express-validator');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { authenticateToken } = require('../middleware/auth');
 const { run, get, all } = require('../models/db');
 const { calculateTotalEmissions } = require('../services/carbonCalculator');
@@ -277,7 +278,6 @@ router.post('/latest/plan', async (req, res, next) => {
     // Try Gemini first
     if (process.env.GEMINI_API_KEY) {
       try {
-        const { GoogleGenerativeAI } = require('@google/generative-ai');
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Layout from '../components/layout/Layout';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -7,7 +7,7 @@ import ProgressBar from '../components/ui/ProgressBar';
 import TrendChart from '../components/charts/TrendChart';
 import { api } from '../services/api';
 import { formatCO2, formatNumber } from '../utils/format';
-import type { DashboardSummary, Goal, LeaderboardEntry } from '../types';
+import type { DashboardSummary, LeaderboardEntry } from '../types';
 
 export default function ProgressPage() {
   const [data, setData] = useState<DashboardSummary | null>(null);

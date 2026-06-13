@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import Card from '../components/ui/Card';
@@ -10,7 +10,7 @@ import FoodForm from '../components/assessment-form/FoodForm';
 import ConsumptionForm from '../components/assessment-form/ConsumptionForm';
 import WasteForm from '../components/assessment-form/WasteForm';
 import WaterForm from '../components/assessment-form/WaterForm';
-import type { AssessmentFormData, Assessment, SustainabilityScore, Recommendation } from '../types';
+import type { AssessmentFormData, Assessment, Recommendation } from '../types';
 import { api } from '../services/api';
 import { formatCO2 } from '../utils/format';
 
@@ -196,7 +196,7 @@ export default function AssessmentPage() {
         <div className="animate-slide-up" role="navigation" aria-label="Assessment steps">
           <div className="flex items-center justify-between mb-2">
             {STEPS.map((step, index) => (
-              <React.Fragment key={step.key}>
+              <Fragment key={step.key}>
                 <button
                   type="button"
                   onClick={() => {
@@ -247,7 +247,7 @@ export default function AssessmentPage() {
                     aria-hidden="true"
                   />
                 )}
-              </React.Fragment>
+              </Fragment>
             ))}
           </div>
           <p className="text-center text-sm text-gray-500 mt-4">

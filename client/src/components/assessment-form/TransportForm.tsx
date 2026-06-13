@@ -1,4 +1,3 @@
-import React from 'react';
 import type { AssessmentFormData } from '../../types';
 import Select from '../ui/Select';
 import Input from '../ui/Input';

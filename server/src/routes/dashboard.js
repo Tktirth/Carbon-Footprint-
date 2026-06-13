@@ -4,6 +4,7 @@ const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
 const { get, all } = require('../models/db');
 const { getScoreLabel } = require('../services/scoringEngine');
+const { generateInsights } = require('../services/insightsEngine');
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -55,7 +56,6 @@ router.get('/summary', async (req, res, next) => {
           label: getScoreLabel(rawScore.overall_score),
         };
 
-        const { generateInsights } = require('../services/insightsEngine');
         insights = generateInsights(
           {
             annual: assessment.annual_emissions_kg,

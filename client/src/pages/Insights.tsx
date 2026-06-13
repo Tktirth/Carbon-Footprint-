@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Layout from '../components/layout/Layout';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -7,8 +7,8 @@ import ProgressBar from '../components/ui/ProgressBar';
 import EmissionsBreakdown from '../components/charts/EmissionsBreakdown';
 import CategoryScores from '../components/charts/CategoryScores';
 import { api } from '../services/api';
-import { formatCO2, formatNumber, getScoreColor, getScoreLabel, getDifficultyColor, getCategoryIcon, getCategoryColor } from '../utils/format';
-import type { DashboardSummary, Recommendation } from '../types';
+import { formatCO2, formatNumber, getCategoryIcon } from '../utils/format';
+import type { DashboardSummary } from '../types';
 
 export default function InsightsPage() {
   const [data, setData] = useState<DashboardSummary | null>(null);

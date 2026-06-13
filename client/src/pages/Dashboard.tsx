@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import Layout from '../components/layout/Layout';
@@ -9,7 +9,7 @@ import ProgressBar from '../components/ui/ProgressBar';
 import EmissionsBreakdown from '../components/charts/EmissionsBreakdown';
 import CategoryScores from '../components/charts/CategoryScores';
 import TrendChart from '../components/charts/TrendChart';
-import { formatCO2, formatNumber, getCategoryIcon, getScoreColor } from '../utils/format';
+import { formatCO2, formatNumber, getCategoryIcon } from '../utils/format';
 
 export default function Dashboard() {
   const { dashboard, isDashboardLoading, dashboardError, fetchDashboard } = useApp();

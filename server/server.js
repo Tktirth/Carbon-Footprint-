@@ -10,6 +10,7 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const compression = require('compression');
 const { generalLimiter } = require('./src/middleware/rateLimiter');
 const { errorHandler } = require('./src/middleware/errorHandler');
 const { caseConverter } = require('./src/middleware/caseConverter');
@@ -60,6 +61,7 @@ function createApp() {
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
   app.use(caseConverter);
+  app.use(compression());
   app.use(generalLimiter);
 
   // ── Health check ──────────────────────────────────────────────────────
@@ -79,7 +81,15 @@ function createApp() {
   // ── Serve static files ────────────────────────────────────────────────
   const publicPath = path.resolve(__dirname, 'public');
   if (fs.existsSync(publicPath)) {
-    app.use(express.static(publicPath));
+    app.use(express.static(publicPath, {
+      maxAge: '1y',
+      immutable: true,
+      setHeaders: (res, filePath) => {
+        if (path.extname(filePath) === '.html') {
+          res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+        }
+      }
+    }));
     app.get('*', (req, res) => {
       // Don't intercept API requests
       if (req.path.startsWith('/api/')) {

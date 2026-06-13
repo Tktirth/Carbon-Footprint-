@@ -1,8 +1,6 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/ui/Button';
-import Card from '../components/ui/Card';
 import Layout from '../components/layout/Layout';
 
 export default function About() {

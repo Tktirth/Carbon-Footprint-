@@ -18,6 +18,16 @@ let isPostgres = !!process.env.DATABASE_URL;
 
 let db;
 let pool;
+const stmtCache = new Map();
+
+function getPreparedStatement(sql) {
+  let stmt = stmtCache.get(sql);
+  if (!stmt) {
+    stmt = db.prepare(sql);
+    stmtCache.set(sql, stmt);
+  }
+  return stmt;
+}
 
 function initPostgresPool() {
   pool = new Pool({
@@ -105,6 +115,7 @@ async function initSqlite(dbPath) {
   const filePath = dbPath || DB_FILE;
   if (db) {
     try { db.close(); } catch (_) {}
+    stmtCache.clear();
   }
   db = new DatabaseSync(filePath);
   db.exec('PRAGMA journal_mode = WAL;');
@@ -149,7 +160,7 @@ async function run(sql, params = []) {
       lastInsertRowid: isInsert ? (result.rows[0]?.id || null) : null
     };
   } else {
-    return db.prepare(sql).run(...paramArray);
+    return getPreparedStatement(sql).run(...paramArray);
   }
 }
 
@@ -162,7 +173,7 @@ async function get(sql, params = []) {
     const result = await pool.query(convertSql(sql), paramArray);
     return result.rows[0] || null;
   } else {
-    return db.prepare(sql).get(...paramArray);
+    return getPreparedStatement(sql).get(...paramArray);
   }
 }
 
@@ -175,7 +186,7 @@ async function all(sql, params = []) {
     const result = await pool.query(convertSql(sql), paramArray);
     return result.rows;
   } else {
-    return db.prepare(sql).all(...paramArray);
+    return getPreparedStatement(sql).all(...paramArray);
   }
 }
 
