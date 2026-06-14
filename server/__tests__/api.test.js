@@ -3,6 +3,7 @@ const { describe, it, expect, beforeAll, afterAll, beforeEach } = globalThis;
 // Force test environment
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test-secret-key';
+delete process.env.GEMINI_API_KEY;
 
 // Initialise an in-memory database before importing the app.
 // We must do this before any module that touches db.js gets loaded.
