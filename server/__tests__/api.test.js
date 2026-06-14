@@ -321,7 +321,7 @@ describe('API Integration Tests', () => {
 
   // ── Authentication Robustness Upgrades ────────────────────────────────────
 
-  it('sets the refresh token cookie with path=/ and SameSite=Lax on register/login', async () => {
+  it('sets the refresh token cookie with path=/ and SameSite=Strict on register/login', async () => {
     const url = `${baseUrl}/api/auth/register`;
     const options = {
       method: 'POST',
@@ -336,7 +336,7 @@ describe('API Integration Tests', () => {
     const setCookie = res.headers.get('set-cookie');
     expect(setCookie).toBeDefined();
     expect(setCookie.toLowerCase()).toContain('path=/');
-    expect(setCookie.toLowerCase()).toContain('samesite=lax');
+    expect(setCookie.toLowerCase()).toContain('samesite=strict');
   });
 
   it('allows token refresh reuse within 30-second grace period but rejects afterwards', async () => {
@@ -406,5 +406,161 @@ describe('API Integration Tests', () => {
       }
     });
     expect(refreshRes3.status).toBe(401);
+  });
+
+  // ── Verification, Score, Trend, Goal, Rec, Caching Tests ──────────────────
+
+  it('POST /api/auth/verify verifies an unverified user', async () => {
+    const { run, get } = require('../src/models/db');
+    const email = 'verify-test@example.com';
+    const passwordHash = '$2a$12$7kP.ZlK7.4Y1iS5.e9YwNe/i5pS1iC9s8s8s8s8s8s8s8s8s8s8s8'; // dummy hash
+    await run(
+      `INSERT INTO users (name, email, password_hash, is_verified, verification_code)
+       VALUES (?, ?, ?, 0, ?)`,
+      ['Verify Test', email, passwordHash, 'VERIFY_1234']
+    );
+
+    const res = await req('POST', '/api/auth/verify', {
+      email,
+      code: 'VERIFY_1234',
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toContain('verified successfully');
+
+    const updatedUser = await get('SELECT is_verified FROM users WHERE email = ?', [email]);
+    expect(updatedUser.is_verified).toBe(1);
+  });
+
+  it('GET /api/scores/latest and GET /api/scores/history return submitted scores', async () => {
+    const regRes = await req('POST', '/api/auth/register', {
+      name: 'Score Test User', email: 'scoretest@example.com', password: 'SecurePassword123!',
+    });
+    const token = regRes.body.token;
+
+    await req('POST', '/api/assessments', {
+      vehicle_type: 'car_petrol',
+      travel_km_per_week: 100,
+      electricity_kwh_per_month: 300,
+      diet_type: 'mixed',
+      waste_bags_per_week: 2,
+      water_liters_per_day: 100,
+    }, token);
+
+    const latestRes = await req('GET', '/api/scores/latest', null, token);
+    expect(latestRes.status).toBe(200);
+    expect(latestRes.body.score).toBeDefined();
+    expect(latestRes.body.score.overall).toBeGreaterThan(0);
+    expect(latestRes.body.score.categories).toBeDefined();
+
+    const historyRes = await req('GET', '/api/scores/history', null, token);
+    expect(historyRes.status).toBe(200);
+    expect(historyRes.body.scores).toBeDefined();
+    expect(historyRes.body.scores.length).toBe(1);
+  });
+
+  it('GET /api/progress/trends returns emission and score trends', async () => {
+    const regRes = await req('POST', '/api/auth/register', {
+      name: 'Trend Test User', email: 'trendtest@example.com', password: 'SecurePassword123!',
+    });
+    const token = regRes.body.token;
+
+    await req('POST', '/api/assessments', {
+      vehicle_type: 'car_petrol',
+      travel_km_per_week: 100,
+      electricity_kwh_per_month: 300,
+      diet_type: 'mixed',
+      waste_bags_per_week: 2,
+      water_liters_per_day: 100,
+    }, token);
+
+    const res = await req('GET', '/api/progress/trends', null, token);
+    expect(res.status).toBe(200);
+    expect(res.body.trends).toBeDefined();
+    expect(res.body.trends.length).toBe(1);
+    expect(res.body.trends[0].annualEmissionsKg).toBeGreaterThan(0);
+  });
+
+  it('POST /api/progress/goals and PATCH /api/progress/goals/:id manage goals and invalidate cache', async () => {
+    const regRes = await req('POST', '/api/auth/register', {
+      name: 'Goal Test User', email: 'goaltest@example.com', password: 'SecurePassword123!',
+    });
+    const token = regRes.body.token;
+    const userId = regRes.body.user.id;
+
+    await req('POST', '/api/assessments', {
+      vehicle_type: 'car_petrol',
+      travel_km_per_week: 100,
+      electricity_kwh_per_month: 300,
+      diet_type: 'mixed',
+      waste_bags_per_week: 2,
+      water_liters_per_day: 100,
+    }, token);
+
+    await req('GET', '/api/dashboard/summary', null, token);
+    const { getDashboardCache } = require('../src/services/cacheService');
+    expect(getDashboardCache(userId)).not.toBeNull();
+
+    const createRes = await req('POST', '/api/progress/goals', {
+      title: 'Reduce Car Travel',
+      target_reduction_kg: 50.0,
+      target_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    }, token);
+
+    expect(createRes.status).toBe(201);
+    expect(createRes.body.goal).toBeDefined();
+    expect(createRes.body.goal.title).toBe('Reduce Car Travel');
+    expect(getDashboardCache(userId)).toBeNull();
+
+    await req('GET', '/api/dashboard/summary', null, token);
+    expect(getDashboardCache(userId)).not.toBeNull();
+
+    const goalId = createRes.body.goal.id;
+    const updateRes = await req('PATCH', `/api/progress/goals/${goalId}`, {
+      current_reduction_kg: 25.0,
+    }, token);
+
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.goal.currentReductionKg).toBe(25);
+    expect(getDashboardCache(userId)).toBeNull();
+  });
+
+  it('GET /api/recommendations and PATCH /api/recommendations/:id/complete toggle and invalidate cache', async () => {
+    const regRes = await req('POST', '/api/auth/register', {
+      name: 'Rec Test User', email: 'rectest@example.com', password: 'SecurePassword123!',
+    });
+    const token = regRes.body.token;
+    const userId = regRes.body.user.id;
+
+    await req('POST', '/api/assessments', {
+      vehicle_type: 'car_petrol',
+      travel_km_per_week: 200,
+      electricity_kwh_per_month: 400,
+      diet_type: 'mixed',
+      waste_bags_per_week: 3,
+      water_liters_per_day: 120,
+    }, token);
+
+    const recsRes = await req('GET', '/api/recommendations', null, token);
+    expect(recsRes.status).toBe(200);
+    expect(recsRes.body.recommendations).toBeDefined();
+    expect(recsRes.body.recommendations.length).toBeGreaterThan(0);
+
+    const rec = recsRes.body.recommendations[0];
+    expect(rec.isCompleted).toBe(0);
+
+    await req('GET', '/api/progress/leaderboard', null, token);
+    const { getLeaderboardCache, getDashboardCache } = require('../src/services/cacheService');
+    expect(getLeaderboardCache()).not.toBeNull();
+
+    await req('GET', '/api/dashboard/summary', null, token);
+    expect(getDashboardCache(userId)).not.toBeNull();
+
+    const completeRes = await req('PATCH', `/api/recommendations/${rec.id}/complete`, {}, token);
+    expect(completeRes.status).toBe(200);
+    expect(completeRes.body.recommendation.isCompleted).toBe(1);
+
+    expect(getLeaderboardCache()).toBeNull();
+    expect(getDashboardCache(userId)).toBeNull();
   });
 });

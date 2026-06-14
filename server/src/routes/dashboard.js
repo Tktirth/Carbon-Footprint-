@@ -5,6 +5,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { get, all } = require('../models/db');
 const { getScoreLabel } = require('../services/scoringEngine');
 const { generateInsights } = require('../services/insightsEngine');
+const { getDashboardCache, setDashboardCache } = require('../services/cacheService');
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -22,6 +23,11 @@ router.use(authenticateToken);
 router.get('/summary', async (req, res, next) => {
   try {
     const userId = req.user.id;
+
+    const cached = getDashboardCache(userId);
+    if (cached) {
+      return res.json(cached);
+    }
 
     // ── Latest assessment
     const assessment = await get(
@@ -132,7 +138,7 @@ router.get('/summary', async (req, res, next) => {
 
     const totalCountRes = await get('SELECT COUNT(*) as count FROM assessments WHERE user_id = ?', [userId]);
 
-    return res.json({
+    const responseData = {
       assessment: assessment || null,
       score,
       recommendations,
@@ -145,7 +151,10 @@ router.get('/summary', async (req, res, next) => {
         total_recommendations: totalRecs,
         active_goals: goals.length,
       },
-    });
+    };
+
+    setDashboardCache(userId, responseData);
+    return res.json(responseData);
   } catch (err) {
     next(err);
   }

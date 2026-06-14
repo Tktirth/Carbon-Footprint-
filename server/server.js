@@ -50,7 +50,24 @@ function createApp() {
 
   // ── Global middleware ───────────────────────────────────────────────────
   app.use(helmet({
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        connectSrc: [
+          "'self'",
+          "https://generativelanguage.googleapis.com",
+          "http://localhost:3001",
+          "http://localhost:5173",
+          "ws://localhost:5173"
+        ],
+        imgSrc: ["'self'", "data:", "https://*.googleapis.com"],
+        objectSrc: ["'none'"],
+        upgradeInsecureRequests: [],
+      },
+    },
   }));
   app.use(cors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:5173',

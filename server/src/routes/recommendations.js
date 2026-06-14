@@ -4,6 +4,7 @@ const express = require('express');
 const { query, param, validationResult } = require('express-validator');
 const { authenticateToken } = require('../middleware/auth');
 const { get, all, run } = require('../models/db');
+const { invalidateDashboardCache, invalidateLeaderboardCache } = require('../services/cacheService');
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -81,6 +82,10 @@ router.patch('/:id/complete', [
 
     const newStatus = rec.is_completed ? 0 : 1;
     await run('UPDATE recommendations SET is_completed = ? WHERE id = ?', [newStatus, recId]);
+
+    // Invalidate caches since database state has changed
+    invalidateDashboardCache(userId);
+    invalidateLeaderboardCache();
 
     return res.json({
       message: newStatus ? 'Recommendation marked as completed.' : 'Recommendation marked as incomplete.',

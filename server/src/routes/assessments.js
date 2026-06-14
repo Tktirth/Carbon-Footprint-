@@ -9,6 +9,7 @@ const { calculateTotalEmissions } = require('../services/carbonCalculator');
 const { calculateCategoryScores, calculateOverallScore } = require('../services/scoringEngine');
 const { generateRecommendations } = require('../services/recommendationEngine');
 const { generateInsights } = require('../services/insightsEngine');
+const { invalidateDashboardCache } = require('../services/cacheService');
 
 const router = express.Router();
 
@@ -155,6 +156,8 @@ router.post('/', assessmentValidation, async (req, res, next) => {
        VALUES (?, 'monthly', ?, ?, ?, ?)`,
       [userId, now, now, emissions.annual, overallScore]
     );
+
+    invalidateDashboardCache(userId);
 
     return res.status(201).json({
       assessment: {

@@ -4,6 +4,7 @@ const express = require('express');
 const { body, param, validationResult } = require('express-validator');
 const { authenticateToken } = require('../middleware/auth');
 const { run, get, all } = require('../models/db');
+const { invalidateDashboardCache, getLeaderboardCache, setLeaderboardCache } = require('../services/cacheService');
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -121,6 +122,8 @@ router.post('/goals', [
 
     const goal = await get('SELECT * FROM goals WHERE id = ?', [result.lastInsertRowid]);
 
+    invalidateDashboardCache(userId);
+
     return res.status(201).json({
       message: 'Goal created successfully.',
       goal: {
@@ -157,24 +160,17 @@ router.patch('/goals/:id', [
       return res.status(404).json({ error: 'Goal not found.' });
     }
 
-    // Build dynamic update
-    const fields = [];
-    const values = [];
-    const allowedFields = ['title', 'target_reduction_kg', 'current_reduction_kg', 'target_date', 'status'];
+    // Update goal fields using a static SQL statement with fallbacks for optional parameters
+    const title = req.body.title !== undefined ? req.body.title : existing.title;
+    const targetReductionKg = req.body.target_reduction_kg !== undefined ? Number(req.body.target_reduction_kg) : existing.target_reduction_kg;
+    const currentReductionKg = req.body.current_reduction_kg !== undefined ? Number(req.body.current_reduction_kg) : existing.current_reduction_kg;
+    const targetDate = req.body.target_date !== undefined ? req.body.target_date : existing.target_date;
+    const status = req.body.status !== undefined ? req.body.status : existing.status;
 
-    for (const field of allowedFields) {
-      if (req.body[field] !== undefined) {
-        fields.push(`${field} = ?`);
-        values.push(req.body[field]);
-      }
-    }
-
-    if (fields.length === 0) {
-      return res.status(400).json({ error: 'No fields to update.' });
-    }
-
-    values.push(goalId);
-    await run(`UPDATE goals SET ${fields.join(', ')} WHERE id = ?`, values);
+    await run(
+      'UPDATE goals SET title = ?, target_reduction_kg = ?, current_reduction_kg = ?, target_date = ?, status = ? WHERE id = ?',
+      [title, targetReductionKg, currentReductionKg, targetDate, status, goalId]
+    );
 
     const updated = await get('SELECT * FROM goals WHERE id = ?', [goalId]);
     const progressPct = updated.target_reduction_kg > 0
@@ -186,6 +182,8 @@ router.patch('/goals/:id', [
       await run('UPDATE goals SET status = ? WHERE id = ?', ['completed', goalId]);
       updated.status = 'completed';
     }
+
+    invalidateDashboardCache(userId);
 
     return res.json({
       message: 'Goal updated successfully.',
@@ -206,17 +204,21 @@ router.get('/leaderboard', async (req, res, next) => {
   try {
     const userId = req.user.id;
 
-    const leaderboard = await all(
-      `SELECT u.id, u.name, COALESCE(SUM(r.co2_reduction_kg), 0) as total_saved_kg,
-              COUNT(r.id) as completed_actions
-       FROM users u
-       JOIN recommendations r ON r.user_id = u.id
-       WHERE r.is_completed = 1
-       GROUP BY u.id, u.name
-       ORDER BY total_saved_kg DESC
-       LIMIT 10`,
-      []
-    );
+    let leaderboard = getLeaderboardCache();
+    if (!leaderboard) {
+      leaderboard = await all(
+        `SELECT u.id, u.name, COALESCE(SUM(r.co2_reduction_kg), 0) as total_saved_kg,
+                COUNT(r.id) as completed_actions
+         FROM users u
+         JOIN recommendations r ON r.user_id = u.id
+         WHERE r.is_completed = 1
+         GROUP BY u.id, u.name
+         ORDER BY total_saved_kg DESC
+         LIMIT 10`,
+        []
+      );
+      setLeaderboardCache(leaderboard);
+    }
 
     // Add rank and privacy-safe display name
     const ranked = leaderboard.map((entry, idx) => ({
